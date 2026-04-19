@@ -1,0 +1,5 @@
+[phases.setup]
+nixPkgs = ["python312", "pango", "gobject-introspection", "glib", "fontconfig", "freetype"]
+
+[start]
+cmd = "python server.py"

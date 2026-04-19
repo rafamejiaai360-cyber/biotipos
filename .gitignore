@@ -1,0 +1,10 @@
+config.json
+resultados/
+pdfs/
+comentarios/
+perfiles_analizados/
+transcripciones/
+__pycache__/
+*.pyc
+.DS_Store
+start.sh

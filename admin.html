@@ -1,0 +1,1460 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Biotipos — Admin</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --white: #ffffff; --off-white: #f5f5f7;
+      --gray-100: #f5f5f5; --gray-200: #e5e5ea;
+      --gray-400: #aeaeb2; --gray-600: #636366; --gray-800: #1c1c1e; --black: #0a0a0a;
+      --accent: #6B21A8; --accent-light: #EDE9FE;
+      --c: #DC2626; --s: #F59E0B; --f: #3B82F6; --m: #7C3AED;
+      --radius-sm: 10px; --radius-md: 16px; --radius-lg: 22px;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,.06); --shadow-md: 0 4px 16px rgba(0,0,0,.09);
+    }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif; background: var(--off-white); color: var(--black); min-height: 100vh; -webkit-font-smoothing: antialiased; }
+
+    /* LOGIN */
+    #screen-login { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    .login-card { background: var(--white); border-radius: var(--radius-lg); padding: 48px 40px; box-shadow: var(--shadow-md); width: 100%; max-width: 380px; text-align: center; }
+    .login-icon { font-size: 40px; margin-bottom: 16px; }
+    .login-title { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+    .login-sub   { font-size: 14px; color: var(--gray-600); margin-bottom: 28px; }
+    .login-input { width: 100%; padding: 13px 16px; border: 1.5px solid var(--gray-200); border-radius: var(--radius-sm); font-size: 15px; outline: none; transition: border-color .2s; margin-bottom: 14px; }
+    .login-input:focus { border-color: var(--accent); }
+    .login-error { font-size: 13px; color: #DC2626; margin-bottom: 10px; min-height: 18px; }
+
+    /* SHELL */
+    #screen-admin { display: none; }
+    .admin-header { background: var(--white); border-bottom: 1px solid var(--gray-200); padding: 0 28px; display: flex; align-items: stretch; justify-content: space-between; position: sticky; top: 0; z-index: 20; }
+    .admin-logo { font-size: 17px; font-weight: 700; display: flex; align-items: center; padding: 16px 0; }
+    .admin-logo span { color: var(--accent); }
+    .admin-tabs { display: flex; gap: 0; }
+    .admin-tab { padding: 0 22px; height: 100%; display: flex; align-items: center; font-size: 14px; font-weight: 500; color: var(--gray-600); cursor: pointer; border-bottom: 3px solid transparent; transition: .2s; background: none; border-top: none; border-left: none; border-right: none; }
+    .admin-tab:hover { color: var(--black); }
+    .admin-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .admin-logout { font-size: 13px; color: var(--gray-600); background: none; border: 1px solid var(--gray-200); border-radius: 8px; padding: 6px 14px; cursor: pointer; align-self: center; }
+    .admin-logout:hover { background: var(--gray-100); }
+
+    /* TAB PANELS */
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* STATS */
+    .stats-bar { display: flex; gap: 16px; padding: 20px 28px; overflow-x: auto; }
+    .stat-chip { background: var(--white); border-radius: var(--radius-sm); padding: 12px 20px; box-shadow: var(--shadow-sm); min-width: 110px; text-align: center; }
+    .stat-chip .stat-n { font-size: 26px; font-weight: 700; }
+    .stat-chip .stat-l { font-size: 12px; color: var(--gray-600); margin-top: 2px; }
+    .stat-chip.c .stat-n { color: var(--c); } .stat-chip.s .stat-n { color: var(--s); }
+    .stat-chip.f .stat-n { color: var(--f); } .stat-chip.m .stat-n { color: var(--m); }
+
+    /* TOOLBAR */
+    .admin-toolbar { display: flex; align-items: center; gap: 12px; padding: 0 28px 16px; flex-wrap: wrap; }
+    .search-input { flex: 1; min-width: 200px; padding: 10px 14px; border: 1.5px solid var(--gray-200); border-radius: var(--radius-sm); font-size: 14px; outline: none; background: var(--white); }
+    .search-input:focus { border-color: var(--accent); }
+    .filter-btn { padding: 9px 18px; border-radius: var(--radius-sm); border: 1.5px solid var(--gray-200); background: var(--white); font-size: 13px; font-weight: 500; cursor: pointer; transition: .2s; }
+    .filter-btn.active.all { background: var(--gray-800); color: var(--white); border-color: transparent; }
+    .filter-btn.active.c   { background: var(--c); color: var(--white); border-color: transparent; }
+    .filter-btn.active.s   { background: var(--s); color: var(--white); border-color: transparent; }
+    .filter-btn.active.f   { background: var(--f); color: var(--white); border-color: transparent; }
+    .filter-btn.active.m   { background: var(--m); color: var(--white); border-color: transparent; }
+
+    /* USERS GRID */
+    .users-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 16px; padding: 0 28px 40px; }
+    .user-card { background: var(--white); border-radius: var(--radius-md); box-shadow: var(--shadow-sm); overflow: hidden; cursor: pointer; transition: box-shadow .2s, transform .2s; }
+    .user-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+    .user-card-bar { height: 5px; }
+    .user-card-body { padding: 16px 18px; }
+    .user-card-name { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+    .user-card-email { font-size: 12px; color: var(--gray-600); margin-bottom: 10px; }
+    .user-card-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+    .temp-badge { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 20px; color: var(--white); }
+    .temp-badge.c { background: var(--c); } .temp-badge.s { background: var(--s); }
+    .temp-badge.f { background: var(--f); } .temp-badge.m { background: var(--m); }
+    .temp-badge.sec { opacity: .75; }
+    .user-card-meta { font-size: 11px; color: var(--gray-400); display: flex; gap: 10px; flex-wrap: wrap; }
+    .user-card-name-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+    .btn-delete-card { flex-shrink: 0; background: none; border: none; font-size: 16px; cursor: pointer; opacity: 0.35; padding: 2px 4px; border-radius: 6px; transition: opacity .15s, background .15s; line-height: 1; }
+    .btn-delete-card:hover { opacity: 1; background: #FEE2E2; }
+
+    /* MODAL */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 100; align-items: center; justify-content: center; padding: 24px; }
+    .modal-overlay.open { display: flex; }
+    .modal { background: var(--white); border-radius: var(--radius-lg); width: 100%; max-width: 640px; max-height: 85vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.2); }
+    .modal-header { padding: 24px 28px 0; display: flex; justify-content: space-between; align-items: flex-start; }
+    .modal-close { background: var(--gray-100); border: none; border-radius: 50%; width: 32px; height: 32px; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .modal-close:hover { background: var(--gray-200); }
+    .modal-name  { font-size: 22px; font-weight: 700; }
+    .modal-email { font-size: 13px; color: var(--gray-600); margin-top: 2px; }
+    .modal-body  { padding: 20px 28px 28px; }
+    .modal-section { margin-bottom: 20px; }
+    .modal-section-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--gray-400); margin-bottom: 8px; }
+    .approach-item { background: var(--gray-100); border-radius: var(--radius-sm); padding: 10px 14px; margin-bottom: 8px; }
+    .approach-item-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--gray-600); margin-bottom: 4px; }
+    .approach-item-text  { font-size: 14px; }
+    .score-row-m { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .score-row-m .lbl { font-size: 13px; width: 100px; }
+    .score-bar-m { flex: 1; height: 8px; background: var(--gray-200); border-radius: 4px; overflow: hidden; }
+    .score-bar-m-fill { height: 100%; border-radius: 4px; }
+    .score-pct-m { font-size: 12px; color: var(--gray-600); width: 32px; text-align: right; }
+    .strengths-m, .weaknesses-m { font-size: 13px; line-height: 1.8; }
+    .strengths-m li, .weaknesses-m li { margin-left: 16px; }
+    .phrase-box { background: var(--accent-light); border-left: 3px solid var(--accent); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; padding: 12px 16px; font-size: 14px; font-style: italic; }
+    .modal-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
+
+    /* ANALYSIS */
+    .analysis-wrap { padding: 24px 28px 40px; max-width: 740px; }
+    .analysis-title { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+    .analysis-sub   { font-size: 14px; color: var(--gray-600); margin-bottom: 28px; }
+    .analysis-context { background: var(--white); border-radius: var(--radius-md); padding: 20px; box-shadow: var(--shadow-sm); margin-bottom: 20px; }
+    .analysis-context label { font-size: 13px; font-weight: 600; display: block; margin-bottom: 6px; }
+    .analysis-context input, .analysis-context textarea {
+      width: 100%; padding: 10px 14px; border: 1.5px solid var(--gray-200);
+      border-radius: var(--radius-sm); font-size: 14px; outline: none;
+      font-family: inherit; resize: vertical;
+    }
+    .analysis-context input:focus, .analysis-context textarea:focus { border-color: var(--accent); }
+    .obs-questions { background: var(--white); border-radius: var(--radius-md); padding: 20px; box-shadow: var(--shadow-sm); margin-bottom: 20px; }
+    .obs-q-title { font-size: 15px; font-weight: 700; margin-bottom: 16px; }
+    .obs-question { margin-bottom: 20px; }
+    .obs-question-text { font-size: 14px; font-weight: 600; margin-bottom: 10px; color: var(--gray-800); }
+    .obs-options { display: flex; flex-direction: column; gap: 8px; }
+    .obs-option { display: flex; align-items: flex-start; gap: 10px; padding: 10px 14px; border: 1.5px solid var(--gray-200); border-radius: var(--radius-sm); cursor: pointer; transition: .2s; font-size: 13px; background: var(--white); text-align: left; }
+    .obs-option:hover { border-color: var(--accent); }
+    .obs-option.selected { border-color: var(--accent); background: var(--accent-light); }
+    .obs-option-dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--gray-400); flex-shrink: 0; margin-top: 1px; }
+    .obs-option.selected .obs-option-dot { background: var(--accent); border-color: var(--accent); }
+
+    /* ANALYSIS RESULT */
+    .analysis-result { display: none; background: var(--white); border-radius: var(--radius-md); overflow: hidden; box-shadow: var(--shadow-sm); margin-bottom: 20px; }
+    .analysis-result.show { display: block; }
+    .analysis-result-hero { padding: 24px; color: var(--white); }
+    .analysis-result-name { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+    .analysis-result-combo { font-size: 14px; opacity: .9; margin-bottom: 12px; }
+    .analysis-result-title { font-size: 22px; font-weight: 800; margin-bottom: 6px; }
+    .analysis-result-desc  { font-size: 13px; opacity: .9; line-height: 1.6; }
+    .analysis-result-body { padding: 20px 24px; }
+    .analysis-section-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--gray-400); margin-bottom: 10px; margin-top: 18px; }
+    .analysis-approach-item { background: var(--gray-100); border-radius: var(--radius-sm); padding: 10px 14px; margin-bottom: 8px; }
+    .analysis-approach-label { font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--gray-600); margin-bottom: 4px; }
+    .analysis-approach-text  { font-size: 13px; }
+    .analysis-phrase { background: var(--accent-light); border-left: 3px solid var(--accent); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; padding: 12px 16px; font-size: 13px; font-style: italic; margin-top: 8px; }
+    .analysis-list { font-size: 13px; line-height: 1.9; }
+    .analysis-list li { margin-left: 16px; }
+
+    /* USER LINK */
+    .user-link-box { background: var(--accent-light); border: 1.5px solid #D8B4FE; border-radius: var(--radius-sm); padding: 14px 16px; margin-bottom: 4px; }
+    .user-link-label { font-size: 13px; font-weight: 700; color: var(--accent); margin-bottom: 10px; }
+    .user-link-search-row { display: flex; gap: 8px; }
+    .user-link-input { flex: 1; padding: 9px 13px; border: 1.5px solid #D8B4FE; border-radius: var(--radius-sm); font-size: 13px; outline: none; background: var(--white); }
+    .user-link-input:focus { border-color: var(--accent); }
+    .user-link-results { margin-top: 8px; }
+    .user-link-result-item { padding: 9px 12px; background: var(--white); border-radius: var(--radius-sm); margin-bottom: 6px; cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: space-between; border: 1.5px solid transparent; transition: .15s; }
+    .user-link-result-item:hover { border-color: var(--accent); }
+    .user-link-result-name { font-weight: 600; }
+    .user-link-result-meta { font-size: 11px; color: var(--gray-600); margin-top: 2px; }
+    .user-link-selected { background: var(--white); border: 2px solid var(--accent); border-radius: var(--radius-sm); padding: 12px 14px; margin-top: 8px; }
+    .user-link-selected-name { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
+    .user-link-selected-info { font-size: 12px; color: var(--gray-600); }
+    .linked-user-banner { background: linear-gradient(90deg, var(--accent), #9333EA); color: var(--white); border-radius: var(--radius-sm); padding: 12px 16px; margin-bottom: 16px; font-size: 13px; display: flex; align-items: center; gap: 10px; }
+
+    /* DEEP ANALYSIS SECTIONS */
+    .deep-section { background: var(--gray-100); border-radius: var(--radius-md); padding: 16px 18px; margin-bottom: 12px; }
+    .deep-section-title { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; color: var(--gray-600); margin-bottom: 12px; }
+    .deep-item { margin-bottom: 10px; }
+    .deep-item-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--gray-400); margin-bottom: 3px; }
+    .deep-item-text  { font-size: 13px; color: var(--gray-800); line-height: 1.65; }
+    .deep-alert { background: #FEF2F2; border-left: 3px solid #DC2626; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; padding: 12px 14px; margin-bottom: 10px; }
+    .deep-alert-label { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #DC2626; margin-bottom: 4px; }
+    .deep-alert-text  { font-size: 13px; color: #7F1D1D; line-height: 1.6; }
+    .starter-pill { display: inline-block; background: var(--white); border: 1.5px solid var(--gray-200); border-radius: 20px; padding: 6px 14px; font-size: 12px; color: var(--gray-800); margin: 4px 4px 4px 0; font-style: italic; cursor: pointer; transition: .15s; }
+    .starter-pill:hover { border-color: var(--accent); color: var(--accent); }
+    .score-confidence { font-size: 12px; color: var(--gray-400); margin-top: 4px; font-style: italic; }
+    .app-profile-banner { border: 2px solid var(--accent); border-radius: var(--radius-md); overflow: hidden; margin-bottom: 16px; }
+    .app-profile-banner-header { background: var(--accent); color: var(--white); padding: 10px 16px; font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+    .app-profile-banner-body { padding: 14px 16px; background: var(--accent-light); font-size: 13px; color: var(--gray-800); line-height: 1.7; }
+
+    /* TRANSCRIPCIONES */
+    .trans-wrap { padding: 24px 28px 40px; max-width: 780px; }
+    .trans-title { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+    .trans-sub   { font-size: 14px; color: var(--gray-600); margin-bottom: 24px; }
+    .trans-card  { background: var(--white); border-radius: var(--radius-md); padding: 22px; box-shadow: var(--shadow-sm); margin-bottom: 20px; }
+    .trans-card-title { font-size: 15px; font-weight: 700; margin-bottom: 14px; }
+    .trans-form label { font-size: 13px; font-weight: 600; display: block; margin-bottom: 6px; color: var(--gray-800); }
+    .trans-form input, .trans-form textarea, .trans-form select {
+      width: 100%; padding: 10px 14px; border: 1.5px solid var(--gray-200);
+      border-radius: var(--radius-sm); font-size: 14px; outline: none;
+      font-family: inherit; margin-bottom: 14px; resize: vertical;
+    }
+    .trans-form input:focus, .trans-form textarea:focus, .trans-form select:focus { border-color: var(--accent); }
+    .trans-list-item { background: var(--gray-100); border-radius: var(--radius-sm); padding: 14px 18px; margin-bottom: 10px; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    .trans-list-item-info { flex: 1; }
+    .trans-list-item-title { font-size: 14px; font-weight: 700; margin-bottom: 3px; }
+    .trans-list-item-meta  { font-size: 12px; color: var(--gray-600); }
+    .trans-badge { font-size: 10px; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
+    .trans-badge.new    { background: #DCFCE7; color: #16A34A; }
+    .trans-badge.synced { background: var(--gray-200); color: var(--gray-600); }
+    .nlm-btn { display: flex; align-items: center; gap: 10px; background: #1a73e8; color: var(--white); border: none; border-radius: var(--radius-sm); padding: 12px 22px; font-size: 14px; font-weight: 600; cursor: pointer; transition: .2s; }
+    .nlm-btn:hover { opacity: .85; }
+    .nlm-btn:disabled { opacity: .5; cursor: not-allowed; }
+    .nlm-status { font-size: 13px; color: var(--gray-600); margin-top: 10px; min-height: 18px; }
+    .nlm-status.ok  { color: #16A34A; }
+    .nlm-status.err { color: #DC2626; }
+
+    /* SHARED BUTTONS */
+    .btn-primary { background: var(--accent); color: var(--white); border: none; border-radius: var(--radius-sm); padding: 11px 22px; font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; transition: .2s; }
+    .btn-primary:hover { opacity: .85; }
+    .btn-primary:disabled { opacity: .4; cursor: not-allowed; }
+    .btn-ghost { background: none; border: 1.5px solid var(--gray-200); border-radius: var(--radius-sm); padding: 11px 22px; font-size: 14px; font-weight: 600; cursor: pointer; color: var(--gray-800); transition: .2s; }
+    .btn-ghost:hover { background: var(--gray-100); }
+    .btn-full { width: 100%; justify-content: center; }
+    .empty-state { grid-column: 1/-1; text-align: center; padding: 60px 20px; color: var(--gray-400); }
+    .empty-state-icon { font-size: 48px; margin-bottom: 12px; }
+    .form-row { display: flex; gap: 12px; }
+    .form-row > * { flex: 1; }
+
+    /* COMMENT ITEMS */
+    .comment-item { background: var(--gray-100); border-radius: var(--radius-sm); padding: 14px 18px; margin-bottom: 10px; border-left: 4px solid var(--gray-200); }
+    .comment-item.expert { border-left-color: var(--accent); background: var(--accent-light); }
+    .comment-item.approved { border-left-color: #16A34A; }
+    .comment-item-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+    .comment-item-name { font-size: 14px; font-weight: 700; }
+    .comment-item-meta { font-size: 12px; color: var(--gray-600); flex: 1; }
+    .expert-badge { font-size: 11px; font-weight: 700; background: var(--accent); color: var(--white); padding: 2px 9px; border-radius: 20px; }
+    .approved-badge { font-size: 11px; font-weight: 700; background: #16A34A; color: var(--white); padding: 2px 9px; border-radius: 20px; }
+    .comment-item-text { font-size: 13px; color: var(--gray-800); line-height: 1.6; margin-bottom: 8px; }
+    .comment-item-creds { font-size: 12px; color: var(--accent); font-weight: 600; margin-bottom: 8px; }
+    .comment-item-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .btn-approve { background: #16A34A; color: var(--white); border: none; border-radius: 8px; padding: 6px 14px; font-size: 12px; font-weight: 700; cursor: pointer; transition: .2s; }
+    .btn-approve:hover { opacity: .85; }
+    .btn-approve:disabled { opacity: .5; cursor: not-allowed; }
+
+    /* PERFIL CARD (reutiliza user-card pero con icono de observación) */
+    .perfil-card-observed { font-size: 11px; color: var(--gray-600); font-style: italic; }
+
+    @media (max-width: 600px) {
+      .admin-header { padding: 0 18px; }
+      .admin-tab { padding: 0 12px; font-size: 13px; }
+      .stats-bar, .admin-toolbar, .users-grid { padding-left: 18px; padding-right: 18px; }
+      .analysis-wrap, .trans-wrap { padding: 18px 18px 32px; }
+      .form-row { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── LOGIN ──────────────────────────────────────────────── -->
+<div id="screen-login">
+  <div class="login-card">
+    <div class="login-icon">🔐</div>
+    <h2 class="login-title">Panel Administrador</h2>
+    <p class="login-sub">Biotipos · Solo para uso interno</p>
+    <input class="login-input" type="password" id="login-pw" placeholder="Contraseña"
+      onkeydown="if(event.key==='Enter') doLogin()" />
+    <div class="login-error" id="login-error"></div>
+    <button class="btn-primary btn-full" onclick="doLogin()">Entrar →</button>
+  </div>
+</div>
+
+<!-- ── ADMIN SHELL ─────────────────────────────────────────── -->
+<div id="screen-admin">
+
+  <div class="admin-header">
+    <div class="admin-logo">🧬 <span>Biotipos</span> Admin</div>
+    <div class="admin-tabs">
+      <button class="admin-tab active" onclick="switchTab('usuarios')">👥 Usuarios</button>
+      <button class="admin-tab" onclick="switchTab('perfiles')">📊 Perfiles</button>
+      <button class="admin-tab" onclick="switchTab('analisis')">🔍 Analizar persona</button>
+      <button class="admin-tab" onclick="switchTab('transcripciones')">📚 Fuentes</button>
+    </div>
+    <button class="admin-logout" onclick="doLogout()">Salir</button>
+  </div>
+
+  <!-- ══ TAB: USUARIOS ══════════════════════════════════════ -->
+  <div class="tab-panel active" id="tab-usuarios">
+    <div class="stats-bar">
+      <div class="stat-chip"><div class="stat-n" id="stat-total">—</div><div class="stat-l">Total</div></div>
+      <div class="stat-chip c"><div class="stat-n" id="stat-c">—</div><div class="stat-l">🔥 Colérico</div></div>
+      <div class="stat-chip s"><div class="stat-n" id="stat-s">—</div><div class="stat-l">☀️ Sanguíneo</div></div>
+      <div class="stat-chip f"><div class="stat-n" id="stat-f">—</div><div class="stat-l">🌊 Flemático</div></div>
+      <div class="stat-chip m"><div class="stat-n" id="stat-m">—</div><div class="stat-l">🌙 Melancólico</div></div>
+      <div class="stat-chip"><div class="stat-n" id="stat-avg" style="font-size:20px">—</div><div class="stat-l">Precisión avg</div></div>
+    </div>
+    <div class="admin-toolbar">
+      <input class="search-input" type="text" id="search-input" placeholder="Buscar por nombre o email..." oninput="renderGrid()" />
+      <button class="filter-btn active all" onclick="setFilter('all',this)">Todos</button>
+      <button class="filter-btn" onclick="setFilter('c',this)">🔥 Colérico</button>
+      <button class="filter-btn" onclick="setFilter('s',this)">☀️ Sanguíneo</button>
+      <button class="filter-btn" onclick="setFilter('f',this)">🌊 Flemático</button>
+      <button class="filter-btn" onclick="setFilter('m',this)">🌙 Melancólico</button>
+    </div>
+    <div class="users-grid" id="users-grid"></div>
+  </div>
+
+  <!-- ══ TAB: PERFILES ANALIZADOS ════════════════════════════ -->
+  <div class="tab-panel" id="tab-perfiles">
+    <div class="trans-wrap" style="max-width:960px">
+      <h2 class="trans-title">📊 Perfiles Analizados</h2>
+      <p class="trans-sub">Historial de personas analizadas desde el panel de administrador. Guarda el resultado de un análisis desde la pestaña "Analizar persona".</p>
+
+      <div class="perfiles-stats" id="perfiles-stats" style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:20px"></div>
+
+      <div class="admin-toolbar" style="padding:0 0 16px">
+        <input class="search-input" type="text" id="perfiles-search" placeholder="Buscar por nombre o contexto..." oninput="renderPerfiles()" />
+        <button class="filter-btn active all" onclick="setPerfilFilter('all',this)">Todos</button>
+        <button class="filter-btn" onclick="setPerfilFilter('c',this)">🔥 Colérico</button>
+        <button class="filter-btn" onclick="setPerfilFilter('s',this)">☀️ Sanguíneo</button>
+        <button class="filter-btn" onclick="setPerfilFilter('f',this)">🌊 Flemático</button>
+        <button class="filter-btn" onclick="setPerfilFilter('m',this)">🌙 Melancólico</button>
+      </div>
+
+      <div class="users-grid" id="perfiles-grid"></div>
+    </div>
+  </div>
+
+  <!-- ══ TAB: ANÁLISIS ══════════════════════════════════════ -->
+  <div class="tab-panel" id="tab-analisis">
+    <div class="analysis-wrap">
+      <h2 class="analysis-title">🔍 Analizar persona</h2>
+      <p class="analysis-sub">Observa a la persona e indica los comportamientos que percibes. El sistema determinará su temperamento probable y te dará una guía personalizada de acercamiento.</p>
+
+      <div class="analysis-context trans-card">
+        <div class="trans-card-title">Contexto básico</div>
+
+        <!-- Vincular con usuario registrado -->
+        <div class="user-link-box" id="user-link-box">
+          <div class="user-link-label">🔗 ¿Esta persona ya llenó el test de la app?</div>
+          <div class="user-link-search-row">
+            <input type="text" id="user-link-search" class="user-link-input"
+              placeholder="Buscar por nombre o email..." oninput="searchLinkedUser()" />
+            <button class="btn-ghost" style="padding:8px 14px;font-size:13px" onclick="clearLinkedUser()">Limpiar</button>
+          </div>
+          <div id="user-link-results" class="user-link-results"></div>
+          <div id="user-link-selected" class="user-link-selected" style="display:none"></div>
+        </div>
+
+        <div class="form-row" style="margin-top:14px">
+          <div>
+            <label>Nombre de la persona</label>
+            <input type="text" id="obs-nombre" placeholder="Ej. Carlos Ramos" />
+          </div>
+          <div>
+            <label>Contexto / objetivo</label>
+            <input type="text" id="obs-contexto" placeholder="Ej. Cliente potencial, colega, etc." />
+          </div>
+        </div>
+        <label>Rasgos físicos que observas <span style="font-weight:400;color:var(--gray-400)">(postura, expresión, complexión, vestimenta, lenguaje corporal...)</span></label>
+        <textarea id="obs-fisico" rows="3" placeholder="Ej. Postura erguida, mirada directa, habla con las manos, viste formal, expresión seria pero segura..."></textarea>
+        <label>Otras notas adicionales</label>
+        <textarea id="obs-notas" rows="2" placeholder="Cualquier otro detalle relevante..."></textarea>
+      </div>
+
+      <div class="obs-questions trans-card">
+        <div class="obs-q-title">Comportamientos observados</div>
+        <div id="obs-questions-container"></div>
+        <div style="margin-top:16px">
+          <button class="btn-primary" id="obs-analyze-btn" onclick="analyzeObs()" disabled>Analizar temperamento →</button>
+          <button class="btn-ghost" style="margin-left:10px" onclick="resetAnalysis()">Limpiar</button>
+        </div>
+      </div>
+
+      <div class="analysis-result" id="analysis-result"></div>
+
+      <!-- Botón guardar perfil analizado -->
+      <div id="save-perfil-wrap" style="display:none;margin-top:12px">
+        <div class="trans-card" style="padding:16px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+          <div style="flex:1;min-width:200px">
+            <div style="font-size:14px;font-weight:700;margin-bottom:3px">¿Guardar este perfil?</div>
+            <div style="font-size:13px;color:var(--gray-600)">Se registrará en la base de datos de Perfiles Analizados.</div>
+          </div>
+          <button class="btn-primary" id="save-perfil-btn" onclick="savePerfil()">💾 Guardar perfil</button>
+          <span id="save-perfil-status" style="font-size:13px;color:var(--gray-600)"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TAB: TRANSCRIPCIONES ═══════════════════════════════ -->
+  <div class="tab-panel" id="tab-transcripciones">
+    <div class="trans-wrap">
+      <h2 class="trans-title">📚 Fuentes de conocimiento</h2>
+      <p class="trans-sub">Sube transcripciones de expertos, notas de psicólogos u opiniones especializadas. El sistema las almacena y puedes exportarlas para actualizar tu cuaderno de NotebookLM.</p>
+
+      <!-- Formulario nueva transcripción -->
+      <div class="trans-card">
+        <div class="trans-card-title">➕ Agregar nueva fuente</div>
+        <div class="trans-form">
+          <div class="form-row">
+            <div>
+              <label>Título / Nombre de la fuente</label>
+              <input type="text" id="trans-titulo" placeholder="Ej. Entrevista Dra. González — Temperamentos" />
+            </div>
+            <div>
+              <label>Tipo de fuente</label>
+              <select id="trans-tipo">
+                <option value="transcripcion">Transcripción de conversación</option>
+                <option value="opinion">Opinión de experto</option>
+                <option value="articulo">Resumen de artículo / libro</option>
+                <option value="caso">Caso clínico / ejemplo</option>
+                <option value="otro">Otro</option>
+              </select>
+            </div>
+          </div>
+          <label>Autor / Experto</label>
+          <input type="text" id="trans-autor" placeholder="Ej. Dra. María González, Psicóloga clínica" />
+          <label>Contenido</label>
+          <textarea id="trans-contenido" rows="10" placeholder="Pega aquí la transcripción, notas o contenido de la fuente..."></textarea>
+          <button class="btn-primary" onclick="saveTranscription()">💾 Guardar fuente</button>
+          <span id="trans-save-status" style="font-size:13px;color:var(--gray-600);margin-left:14px"></span>
+        </div>
+      </div>
+
+      <!-- Aportes de usuarios y expertos -->
+      <div class="trans-card" id="comments-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:10px">
+          <div class="trans-card-title" style="margin-bottom:0">🎓 Aportes de Usuarios y Expertos</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="filter-btn active all" id="comments-filter-all" onclick="filterComments('all',this)" style="padding:6px 14px;font-size:12px">Todos</button>
+            <button class="filter-btn" onclick="filterComments('expert',this)" style="padding:6px 14px;font-size:12px">Solo expertos</button>
+            <button class="filter-btn" onclick="filterComments('pending',this)" style="padding:6px 14px;font-size:12px">Pendientes</button>
+          </div>
+        </div>
+        <p style="font-size:13px;color:var(--gray-600);margin-bottom:14px">Comentarios de usuarios y aportes de expertos después de completar el test. Aprueba los aportes de expertos para integrarlos a las Fuentes de conocimiento.</p>
+        <div id="comments-list"><div style="font-size:13px;color:var(--gray-400);padding:20px 0;text-align:center">Cargando aportes...</div></div>
+      </div>
+
+      <!-- Lista de fuentes + botón NotebookLM -->
+      <div class="trans-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px">
+          <div class="trans-card-title" style="margin-bottom:0">📋 Fuentes guardadas</div>
+          <button class="nlm-btn" id="nlm-btn" onclick="exportForNotebookLM()">
+            📓 Actualizar NotebookLM
+          </button>
+        </div>
+        <div class="nlm-status" id="nlm-status"></div>
+        <div id="trans-list"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── MODAL USUARIO ───────────────────────────────────────── -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
+  <div class="modal" id="modal">
+    <div class="modal-header">
+      <div>
+        <div class="modal-name"  id="modal-name"></div>
+        <div class="modal-email" id="modal-email"></div>
+      </div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+// CONSTANTES
+// ══════════════════════════════════════════════════════════════
+const TYPE_COLORS  = { c:"#DC2626", s:"#F59E0B", f:"#3B82F6", m:"#7C3AED" };
+const TYPE_NAMES   = { c:"Colérico", s:"Sanguíneo", f:"Flemático", m:"Melancólico" };
+const TYPE_EMOJIS  = { c:"🔥", s:"☀️", f:"🌊", m:"🌙" };
+const NEIGHBORS    = { c:["s","m"], s:["c","f"], f:["s","m"], m:["c","f"] };
+
+// ══════════════════════════════════════════════════════════════
+// PERFILES PROFUNDOS — Guía completa de conexión y ventas
+// ══════════════════════════════════════════════════════════════
+const PROFILES = {
+  "c-s": {
+    title:"El Líder Carismático", subtitle:"Colérico-Sanguíneo",
+    description:"Persona de alto impacto. Combina la energía de un líder con el magnetismo de alguien que sabe trabajar a las personas. Actúa rápido, piensa en grande y necesita sentir que siempre va ganando.",
+    strengths:["Liderazgo natural e innato","Alta energía y capacidad de ejecución","Persuasión poderosa","Orientado a resultados concretos","Inspira y mueve a otros","Emprendedor y visionario","Se adapta socialmente con facilidad","Pensamiento estratégico rápido"],
+    weaknesses:["Puede ser impulsivo y arrepentirse después","Baja tolerancia a la lentitud o ineficiencia","Dificultad para escuchar cuando ya tomó una decisión","Puede perder el foco si aparece algo más emocionante","Puede atropellar a otros sin darse cuenta"],
+    communication:{ style:"Directo, rápido, usa frases cortas y contundentes. Interrumpe si se aburre. Habla de logros, retos y oportunidades. Evita rodeos.", listening:"Escucha selectivamente: presta atención cuando le hablas de resultados o ventajas competitivas. Si no ve el valor rápido, desconecta.", body_language:"Postura dominante, contacto visual fuerte, habla con gestos amplios. Puede invadir el espacio personal sin notarlo." },
+    decision:{ style:"Decide rápido basándose en su instinto y en quién le transmite más confianza y poder. No necesita todos los detalles.", triggers:"La oportunidad de ganar, de ser el primero, de tener ventaja sobre otros. El miedo a quedarse atrás.", blockers:"La percepción de que pierde el control, de que le están vendiendo algo o de que no está tomando él la decisión." },
+    sales:{ opener:"'Tengo algo que puede darte una ventaja real sobre lo que ya tienes.' Sé directo, no vendas — presenta un reto u oportunidad.", pitch:"Resultados, números, casos de éxito poderosos. Habla de lo que han logrado otros líderes como él. Ponlo en posición de ganador.", objections:"Si objeta, no argumentes — reformula: 'Exactamente por eso lo estoy trayendo a ti primero.' Le encanta sentir exclusividad y prioridad.", close:"Cierra con urgencia real o escasez: 'Esto se define esta semana.' Nunca presiones suavemente — eso lo interpreta como debilidad.", after:"Hazle saber los resultados. Envíale datos concretos de cómo le fue. Le encanta ver que acertó." },
+    relationship:{ start:"Muéstrate competente desde el primer minuto. La primera impresión lo es todo con él.", build:"Gana su respeto siendo directo, cumpliendo lo que dices y nunca desperdiciando su tiempo.", maintain:"Dale autonomía. No lo supervises. Preséntale nuevos retos cada cierto tiempo o se aburrirá de la relación.", long_term:"Sé alguien que le trae valor constante: información, conexiones, oportunidades. Si te percibe como útil, eres parte de su círculo." },
+    fears:"Perder el control, ser visto como débil o incompetente, que alguien más le gane la partida.",
+    red_flags:"Si empieza a mirar el teléfono, ya perdiste su atención. Si te dice 'ya lo veo' sin comprometerse, necesitas replantear el valor. Si se vuelve agresivo, tocaste su ego — da un paso atrás.",
+    conversation_starters:["'¿Cuál es el mayor reto que estás enfrentando ahorita en [su área]?'","'Vi lo que están haciendo en [su empresa/proyecto] — impresionante. ¿Cómo lo lograron?'","'Te traigo algo que pocos tienen acceso todavía.'"],
+    approach:{ icebreaker:"Ve al grano. Propón un reto o una oportunidad concreta desde el primer momento.", trust:"Demuestra competencia y resultados. No hagas perder el tiempo.", sales:"Habla de ventajas competitivas, primicia y resultados que puede presumir.", relationship:"Mantén el ritmo. Tráele valor nuevo constantemente.", avoid:"Rodeos, lentitud, debilidad o falta de seguridad.", phrase:"'Esto te va a dar ventaja sobre los demás.'" }
+  },
+  "c-m": {
+    title:"El Estratega Determinado", subtitle:"Colérico-Melancólico",
+    description:"La combinación más exigente. Une la fuerza de voluntad del colérico con la profundidad analítica del melancólico. Decide con criterio, ejecuta con determinación y no acepta mediocridad.",
+    strengths:["Visión estratégica de largo plazo","Determinación inquebrantable","Rigor analítico excepcional","Alta autoexigencia","Orientado a la excelencia sin negociación","Perseverante ante la adversidad","Liderazgo con sustancia y profundidad"],
+    weaknesses:["Puede ser inflexible cuando ya decidió","Exige tanto de otros que genera tensión","Tiende a controlar hasta el más mínimo detalle","Poca paciencia con personas que no igualan su nivel","Puede encerrarse en su análisis y no avanzar"],
+    communication:{ style:"Preciso y directo. Habla con datos y argumentos sólidos. No tolera imprecisiones ni generalizaciones. Puede parecer frío pero no lo es — simplemente valora la exactitud.", listening:"Escucha muy bien cuando el tema le importa. Detecta inconsistencias rápidamente. Si algo no cuadra, lo señalará.", body_language:"Postura controlada, contacto visual sostenido, expresión facial neutra o seria. Gestos medidos. Pausa antes de responder." },
+    decision:{ style:"Analiza profundamente antes de decidir. Necesita que los números cierren y que la lógica sea impecable. Una vez que decide, no da marcha atrás.", triggers:"La certeza de que es la mejor decisión posible basada en evidencia. La seguridad de que no está cometiendo un error.", blockers:"La duda, la información incompleta, la sensación de que le están ocultando algo o de que hay riesgo no contemplado." },
+    sales:{ opener:"Llega con datos y un diagnóstico claro: 'Analicé tu situación y creo que hay una oportunidad específica en [área].'", pitch:"Muestra el razonamiento completo: problema → solución → evidencia → resultado esperado. No saltes pasos. Cada afirmación debe tener respaldo.", objections:"Sus objeciones son legítimas y bien pensadas. Trátalas con seriedad: 'Buena pregunta — déjame mostrarte el dato.' Nunca las minimices.", close:"No presiones. Dile: 'Tómate el tiempo que necesites para revisar. Aquí está todo el detalle.' La presión lo aleja. La solidez de la propuesta lo cierra.", after:"Envía un resumen escrito post-reunión. Le encanta tener todo documentado y poder verificar lo que se acordó." },
+    relationship:{ start:"La primera impresión importa pero no es definitiva — él evalúa en el tiempo. Sé consistente desde el día uno.", build:"Cada interacción debe demostrar que eres serio, preparado y que cumples. Un error grave sin disculpa sincera puede romper todo.", maintain:"Respeta su espacio y ritmo. No lo satures de comunicación. Un mensaje bien pensado cada cierto tiempo vale más que diez superficiales.", long_term:"Si logras ganarte su confianza, la lealtad de este perfil es casi inquebrantable. Te defenderá con argumentos cuando sea necesario." },
+    fears:"Tomar una mala decisión, ser engañado, ser visto como alguien que no tiene criterio o que no investigó suficiente.",
+    red_flags:"Si te hace preguntas muy específicas que no puedes responder, ya está evaluando si eres confiable. Si su tono se vuelve más cortante, siente que estás improvisando. Si deja de hacer preguntas, posiblemente ya descartó la opción.",
+    conversation_starters:["'Estuve revisando [tema relevante para él] y encontré algo interesante que quería consultarte.'","'¿Cuál es el criterio más importante para ti al momento de decidir sobre [tema]?'","'Tengo un análisis que hice y quisiera tu opinión — creo que te puede parecer relevante.'"],
+    approach:{ icebreaker:"Presenta datos, hechos y un problema concreto que resolver.", trust:"Sé consistente. Cumple lo que dices. Demuestra preparación en cada interacción.", sales:"Muestra la lógica completa. Datos, evidencia, razonamiento sólido.", relationship:"Respeta su espacio y ritmo. La profundidad construye confianza.", avoid:"Improvisación, promesas vacías, superficialidad o información incompleta.", phrase:"'He analizado esto y tiene mucho sentido estratégico para ti.'" }
+  },
+  "s-c": {
+    title:"El Motivador Enérgico", subtitle:"Sanguíneo-Colérico",
+    description:"La combinación más contagiosa de energía. Entra a un cuarto y lo ilumina. Vende con entusiasmo, lidera con carisma y convierte la emoción en acción. Su mayor riesgo: prometer más de lo que puede entregar.",
+    strengths:["Magnéticamente sociable y carismático","Entusiasmo genuinamente contagioso","Capacidad de mover a otros a la acción","Creativo e innovador","Motiva equipos con facilidad","Flexible y adaptable","Rápido para tomar iniciativa"],
+    weaknesses:["Puede prometer sin calcular bien","Se distrae con facilidad ante lo nuevo","Poca tolerancia a lo rutinario y repetitivo","Decisiones impulsivas que después corrige","Puede olvidar compromisos si no los registra"],
+    communication:{ style:"Animado, emotivo, usa mucho humor y storytelling. Exagera para hacer el punto. Cambia de tema con fluidez. Hace que cualquier conversación se sienta emocionante.", listening:"Escucha con entusiasmo pero selectivamente. Puede interrumpir cuando se le ocurre algo. Conecta lo que escuchas con sus propias experiencias.", body_language:"Muy expresivo con las manos. Sonríe constantemente. Contacto visual amigable. Invade el espacio con energía positiva." },
+    decision:{ style:"Decide rápido basándose en el entusiasmo del momento y en cómo se siente con la persona que le presenta la propuesta. La relación importa mucho.", triggers:"La emoción del momento, el factor 'wow', sentir que es algo especial o exclusivo, y el miedo a perderse algo bueno.", blockers:"El aburrimiento, la frialdad, la percepción de que hay mucha burocracia o procesos lentos." },
+    sales:{ opener:"Comienza con algo que lo sorprenda o emocione: 'Tengo algo que te va a encantar — literalmente lo pensé cuando te vi a ti.'", pitch:"Usa historias de éxito emotivas. Haz que se imagine ya viviendo el resultado. El 'wow factor' importa más que los datos técnicos.", objections:"Si objeta, hazlo reír o cambia el ángulo: 'Exactamente — por eso es tan bueno.' Redirige con energía positiva.", close:"Cierra en caliente, en el momento de mayor entusiasmo. Si se va a 'pensarlo', la probabilidad baja significativamente.", after:"Felicítalo por su decisión. Refuerza que tomó la mejor opción. Le encanta que le confirmen que acertó." },
+    relationship:{ start:"Sé cálido, divertido y auténtico. Si lo haces reír en los primeros minutos, ya ganaste terreno.", build:"Comparte experiencias, cuenta anécdotas, celébralo. Necesita sentir que la relación es especial y no solo transaccional.", maintain:"Check-ins frecuentes y personalizados. Un meme, un artículo divertido, un cumpleaños recordado — todo suma.", long_term:"Sé parte de su mundo social. Si te conviertes en alguien de su círculo, la lealtad es muy alta aunque sea informal." },
+    fears:"Ser ignorado, aburrirse, perderse algo importante, que lo vean como incompetente o que no lo quieran.",
+    red_flags:"Si baja la energía en la conversación, se está aburriendo. Si empieza a hablar de otro tema, ya desconectó del tuyo. Si dice 'sí sí' sin comprometerse, está siendo amable pero no convencido.",
+    conversation_starters:["'¡Tenía que contarte esto — te va a parecer increíble!'","'¿Cómo te ha ido con [algo que sabes que le entusiasma]?'","'Vi algo que me hizo pensar inmediatamente en ti.'"],
+    approach:{ icebreaker:"Sé amigable, dinámico. Encuentra algo en común rápidamente y hazlo reír.", trust:"Conéctate emocionalmente. Comparte experiencias y sé auténtico.", sales:"El factor 'wow', historias de éxito, emoción y visión del resultado.", relationship:"Mantén la energía. Celébralo. Hazlo sentir especial constantemente.", avoid:"Ser demasiado serio, técnico, lento o frío.", phrase:"'Imagina lo increíble que puede ser esto para ti.'" }
+  },
+  "s-f": {
+    title:"El Conector Empático", subtitle:"Sanguíneo-Flemático",
+    description:"La persona más querida del grupo. Hace que todos se sientan vistos y valorados. Conecta con facilidad pero construye relaciones con profundidad. Su fortaleza es la gente — su vulnerabilidad también.",
+    strengths:["Empatía extraordinaria y genuina","Sociabilidad natural sin esfuerzo","Escucha activa de calidad","Crea ambientes cálidos y seguros","Colaborativo en extremo","Alegre y optimista","Diplomático ante el conflicto"],
+    weaknesses:["Evita confrontaciones necesarias","Gran dificultad para decir no","Puede tomar demasiados compromisos","Muy sensible a la crítica o el rechazo","Puede ser disperso sin estructura"],
+    communication:{ style:"Cálido, conversacional, hace muchas preguntas sobre la otra persona. Comparte experiencias personales. Crea rapport de forma natural e inmediata.", listening:"Escucha con toda su atención. Hace contacto visual sostenido, asiente, refleja emociones. Escuchar es su superpoder.", body_language:"Postura abierta y relajada. Sonrisa genuina. Busca proximidad física cómoda. Sus ojos comunican tanto como sus palabras." },
+    decision:{ style:"Decide basándose en cómo se siente con la relación y en si la propuesta ayuda a otros además de a él. Necesita tiempo para consultar con personas de su confianza.", triggers:"El sentido de comunidad, saber que otros ya lo usan y están contentos, y que la decisión no rompe ninguna relación importante.", blockers:"La presión, la frialdad, el sentir que solo le importa su dinero y no él como persona." },
+    sales:{ opener:"Comienza por él/ella como persona: '¿Cómo has estado? ¿Cómo va [algo personal que recuerdes]?' Nunca vayas al grano sin conectar primero.", pitch:"Usa testimonios de personas reales. Habla del impacto en la vida de las personas, no solo en los números. La historia humana importa más que el dato.", objections:"Sus objeciones suelen ser sobre el impacto en otros: '¿Y si no les parece a los demás?' Responde con más ejemplos de comunidad y respaldo.", close:"No presiones nunca. Dile: 'Cuando te sientas listo, aquí estoy.' La confianza en ti es lo que cierra, no la urgencia.", after:"Revisa cómo le fue con cariño genuino. Un mensaje personalizado post-venta lo convierte en tu promotor más leal." },
+    relationship:{ start:"Pregunta antes de hablar de ti. Muestra interés genuino en su vida. La primera conversación debe ser sobre él.", build:"Recuerda los detalles: su cumpleaños, el nombre de su hijo, el proyecto que le preocupaba. Eso construye lealtad profunda.", maintain:"Presencia constante pero ligera. Un mensaje de vez en cuando que demuestre que piensas en él sin pedir nada.", long_term:"Si lo cuidas bien, se convierte en tu embajador más poderoso. Te recomienda porque le nace — no porque lo hayas pedido." },
+    fears:"El rechazo, decepcionar a alguien, el conflicto abierto, perder relaciones importantes.",
+    red_flags:"Si se vuelve muy amable pero evasivo, está evitando decirte que no. Si deja de compartir cosas personales, la relación se enfrió. Si dice 'tengo que consultarlo', significa que alguien de su círculo podría objetar.",
+    conversation_starters:["'¿Cómo han estado? ¿Cómo va [algo que recuerdes de él]?'","'Estaba pensando en ti cuando vi esto — ¿cómo lo ves?'","'¿Cómo te puedo ayudar en lo que estás trabajando ahorita?'"],
+    approach:{ icebreaker:"Sé cálido. Pregunta por él antes de hablar de negocios. La persona primero.", trust:"La relación personal es el fundamento. Todo lo demás viene después.", sales:"Testimonios, impacto humano y la sensación de que lo acompañas.", relationship:"Interés genuino y constante en su vida. Recuerda los detalles.", avoid:"Presión, frialdad o ir directo al negocio sin conectar.", phrase:"'Muchas personas que conozco encontraron que esto cambió su vida.'" }
+  },
+  "f-s": {
+    title:"El Apoyo Constante", subtitle:"Flemático-Sanguíneo",
+    description:"La persona más confiable y querida. Combina estabilidad con calidez. Todo el mundo confía en él y disfruta su compañía. Su lealtad es su mayor activo y también su mayor vulnerabilidad.",
+    strengths:["Lealtad inquebrantable","Paciencia genuina","Mediador natural en conflictos","Crea ambientes cómodos y seguros","Escucha sin juzgar","Perseverante sin necesitar reconocimiento","Adaptable y fácil de tratar"],
+    weaknesses:["Demasiado pasivo ante situaciones que requieren acción","Evita el conflicto aunque sea necesario","Le cuesta iniciar cambios o tomar la iniciativa","Puede ser indeciso por querer quedar bien con todos","Su gentileza puede ser interpretada como falta de convicción"],
+    communication:{ style:"Calmado, paciente, escucha más de lo que habla. Habla en tono moderado y con cuidado de no herir a nadie. Comparte historias con humor suave.", listening:"Escucha completamente. Nunca interrumpe. Hace que sientas que eres lo más importante del mundo mientras te habla.", body_language:"Postura relajada y abierta. Contacto visual amable. Asienta frecuentemente. Su presencia es reconfortante." },
+    decision:{ style:"Decide lentamente, necesita estar seguro de que la decisión es segura y que no va a afectar negativamente a nadie cercano. Valora el consenso.", triggers:"La seguridad, el soporte post-venta, saber que no está solo en la decisión y que hay garantías claras.", blockers:"La presión, los cambios bruscos, la sensación de que se está apresurando o de que hay riesgo oculto." },
+    sales:{ opener:"Sé amable y sin agenda visible: '¿Cómo va todo? Solo quería saber cómo estás.' Que no sienta que vienes a venderle algo desde el inicio.", pitch:"Enfócate en la seguridad, el soporte y cómo esto ha funcionado para personas en situaciones similares. Normaliza la decisión.", objections:"Sus objeciones son sobre el riesgo y el cambio: '¿Y si no funciona?' Responde con garantías, casos exitosos y tu soporte personal.", close:"Dale tiempo. Nunca presiones. Dile: 'Piénsalo con calma — aquí estoy cuando quieras.' La paciencia contigo es lo que cierra.", after:"Acompáñalo durante el proceso de implementación. Que sienta que no lo dejaste solo después de cerrar." },
+    relationship:{ start:"Sé constante y predecible. Le genera más confianza alguien estable que alguien demasiado emocionante.", build:"Está construida en el tiempo. No hay atajos. Cumple siempre, sin excepciones, y la relación crecerá sola.", maintain:"Presencia regular aunque sea ligera. No desaparezcas meses y reaparezca solo cuando necesitas algo.", long_term:"Si ganaste su confianza, probablemente la tienes de por vida. Es el tipo de persona que te recomienda con convicción porque lo siente." },
+    fears:"El conflicto, los cambios bruscos, decepcionar a alguien, ser presionado a actuar antes de estar listo.",
+    red_flags:"Si se vuelve muy callado, está incómodo con algo pero no lo dirá directamente. Si da respuestas muy cortas, la relación se enfriando. Si cancela o pospone reuniones, hay algo que lo está bloqueando.",
+    conversation_starters:["'¿Cómo has estado? Solo quería saludar y ver cómo van las cosas.'","'Recordé lo que me contaste de [proyecto/situación] — ¿cómo resultó?'","'¿Hay algo en lo que te pueda ayudar ahorita?'"],
+    approach:{ icebreaker:"Sé amable y sin presión. Deja que la conversación fluya naturalmente.", trust:"Consistencia total. Siempre cumple. Nunca decepciones.", sales:"Seguridad, soporte, garantías y casos similares exitosos.", relationship:"Paciencia y presencia constante. La lealtad se gana con el tiempo.", avoid:"Presión, urgencia artificial o cambios bruscos sin aviso.", phrase:"'Esto ha funcionado muy bien para personas en exactamente tu situación.'" }
+  },
+  "f-m": {
+    title:"El Pensador Tranquilo", subtitle:"Flemático-Melancólico",
+    description:"Profundidad y calma en perfecta armonía. Observa todo antes de actuar. Sus relaciones son pocas pero extraordinariamente profundas. Confiar en él es un privilegio — traicionarlo es un punto sin retorno.",
+    strengths:["Reflexividad y profundidad poco comunes","Atención al detalle extraordinaria","Lealtad que rara vez se rompe","Relaciones verdaderamente profundas","Pensamiento analítico pausado","Paciencia casi ilimitada","Confiabilidad total"],
+    weaknesses:["Perfeccionismo que puede paralizar","Procrastinación ante decisiones importantes","Dificultad para expresar lo que siente","Excesivamente reservado con personas nuevas","Puede quedar atrapado en el análisis sin actuar"],
+    communication:{ style:"Habla poco pero dice cosas importantes. Sus palabras están muy bien elegidas. Prefiere la comunicación escrita. Puede parecer distante pero es porque está procesando.", listening:"Escucha con una profundidad que pocas personas experimentan. No interrumpe nunca. Procesa todo antes de responder.", body_language:"Postura contenida, poco movimiento. Expresión facial tranquila. El silencio forma parte de su comunicación y es cómodo para él." },
+    decision:{ style:"Decide muy lentamente. Necesita tiempo, información completa y un período de reflexión sin presión. Una vez que decide, la decisión es sólida.", triggers:"La certeza total, la información completa y el tiempo necesario para procesar. Necesita sentir que ha considerado cada ángulo.", blockers:"La presión del tiempo, la información incompleta, los cambios de última hora y la sensación de que lo están apurando." },
+    sales:{ opener:"Llega con la información completa y sin prisas: 'Quería compartirte algo que creo puede ser relevante para ti. Sin apuro — cuando quieras lo revisamos.'", pitch:"Dale todo el detalle. No simplifiques en exceso. Aprecia el rigor. Comparte documentación, estudios, casos detallados.", objections:"Sus objeciones son profundas y bien pensadas. Respóndelas con la misma profundidad: 'Es una observación muy válida — déjame explicarte cómo lo abordamos.'", close:"No hay cierre en caliente con este perfil. El cierre llega cuando él ya procesó todo y siente que la decisión es correcta. Tu trabajo es dar el tiempo y la información.", after:"Envía un resumen detallado. Confirma cada acuerdo por escrito. La documentación lo tranquiliza." },
+    relationship:{ start:"Construye despacio. No te apresures. Respeta sus silencios y su necesidad de espacio — no lo interpretes como rechazo.", build:"La consistencia silenciosa. Estar cuando lo necesita, sin hacer ruido. Un gesto significativo vale más que cien superficiales.", maintain:"Mensajes reflexivos y personalizados. Una recomendación de libro, un artículo relevante, un pensamiento que le recuerde que lo conoces de verdad.", long_term:"Si lo lograste, tienes una de las relaciones más sólidas posibles. Su lealtad es casi permanente y te defenderá con profundidad." },
+    fears:"La superficialidad, ser malentendido, cometer un error por no haber analizado suficiente, perder el control de la situación.",
+    red_flags:"Si responde con monosílabos, algo no cuadra para él. Si pide tiempo para pensarlo una y otra vez, falta información o seguridad. Si se retira de la comunicación, hay algo que lo incomoda profundamente.",
+    conversation_starters:["'Encontré algo que creo puede interesarte — sin apuro, cuando puedas.'","'¿Cómo estás procesando [situación o tema que sabes que le preocupa]?'","'Quería tu opinión sobre algo — sé que lo piensas con profundidad.'"],
+    approach:{ icebreaker:"Respeta su silencio. Dale espacio. Sin presión ni urgencia.", trust:"Genuinidad y consistencia en el tiempo. La profundidad importa más que la frecuencia.", sales:"Toda la información, todo el detalle. Sin prisas y sin saltarse pasos.", relationship:"Relaciones lentas, profundas y permanentes.", avoid:"Ruido, superficialidad, presión o cambios de último momento.", phrase:"'Tómate el tiempo que necesites — esto está pensado para el largo plazo.'" }
+  },
+  "m-c": {
+    title:"El Perfeccionista Resolutivo", subtitle:"Melancólico-Colérico",
+    description:"Analítico y determinado en igual medida. Busca la excelencia sin excusas y tiene la voluntad para alcanzarla. Es el más difícil de convencer — y el más fiel cuando lo logras.",
+    strengths:["Perfeccionismo que produce resultados reales","Alta capacidad analítica","Determinación cuando decide","Autoexigencia como estándar","Visión de largo plazo","Perseverancia ante la adversidad","Criterio elevado que contagia"],
+    weaknesses:["Puede ser muy crítico con otros","Exige tanto que genera tensión en el equipo","Le cuesta delegar por miedo a que no se haga bien","Puede cerrarse emocionalmente","Su perfeccionismo puede volverse obsesión"],
+    communication:{ style:"Preciso, crítico y directo. No hay palabras de más. Si habla, hay una razón. Puede parecer frío o incluso duro, pero es simplemente su forma de comunicar rigor.", listening:"Escucha críticamente. Mientras hablas, está evaluando la solidez de tu argumento. Una inconsistencia y pierde la confianza.", body_language:"Postura controlada y seria. Contacto visual sostenido que puede sentirse evaluador. Pocos gestos. Pausa larga antes de responder." },
+    decision:{ style:"Analiza todo exhaustivamente. Puede tardar mucho pero cuando decide, no hay vuelta atrás. La decisión es producto de un proceso riguroso.", triggers:"La evidencia irrefutable, la lógica impecable y la certeza de que es la mejor opción posible con la información disponible.", blockers:"Cualquier duda no resuelta, información incompleta o la percepción de que están tratando de manipularlo." },
+    sales:{ opener:"Llega con el análisis hecho: 'Revisé tu situación con detalle y encontré algo específico que quiero mostrarte.'", pitch:"Datos, estudios, casos comprobados. Cada afirmación debe tener respaldo. No exageres nunca — lo detectará y perderás toda credibilidad.", objections:"Sus objeciones son las más difíciles porque están bien fundamentadas. Respóndelas con datos mejores: 'Exactamente eso investigué — aquí está la evidencia.'", close:"No hay presión posible con este perfil. El cierre es consecuencia natural de una propuesta impecable. Dale tiempo y espacio.", after:"Documenta todo. Envía resúmenes. Que pueda verificar cada punto que acordaron. Eso construye confianza." },
+    relationship:{ start:"Demuestra tu competencia desde la primera interacción. Un error grave al inicio puede cerrarte la puerta para siempre.", build:"Consistencia y rigor. Nunca llegues sin prepararte. Cada interacción debe demostrar que eres serio.", maintain:"Respeta su tiempo y su criterio. No insistas si ya dijo que necesita espacio para pensar.", long_term:"Cuando lo ganas, tienes un aliado que te defenderá con argumentos y te recomendará con credibilidad." },
+    fears:"Tomar una decisión equivocada por no haber analizado suficiente, ser engañado, que lo vean sin criterio.",
+    red_flags:"Si te hace preguntas que no puedes responder, está evaluando tu credibilidad. Si su tono se vuelve más cortante, percibe que estás improvisando. Si deja de hacer preguntas, ya descartó la opción.",
+    conversation_starters:["'Hice un análisis que creo que es relevante para lo que estás enfrentando.'","'¿Cuál es el mayor problema sin resolver que tienes en [su área]?'","'Quiero mostrarte algo — necesito tu criterio honesto.'"],
+    approach:{ icebreaker:"Llega preparado. Presenta un análisis o diagnóstico concreto.", trust:"Competencia demostrada. Rigor en cada interacción. Cero errores.", sales:"Datos, evidencia, lógica impecable. Sin exageraciones ni atajos.", relationship:"Respeta su criterio. Admite lo que no sabes. Sé consistente.", avoid:"Imprecisión, superficialidad, presión o falta de preparación.", phrase:"'Los datos respaldan esto completamente.'" }
+  },
+  "m-f": {
+    title:"El Idealista Sensible", subtitle:"Melancólico-Flemático",
+    description:"La combinación más profunda emocionalmente. Siente el mundo con una intensidad que pocos comprenden. Busca significado en todo — en las relaciones, en el trabajo, en cada decisión. Su conexión contigo será superficial o profunda, no hay término medio.",
+    strengths:["Empatía profunda y auténtica","Creatividad que sorprende","Profundidad en las relaciones","Lealtad que raramente se encuentra","Detallismo que no pasa nada por alto","Búsqueda constante de propósito","Introspección que genera sabiduría"],
+    weaknesses:["Tendencia a la melancolía y el pesimismo","Autocrítica excesiva","Le cuesta salir de su zona de confort","Hipersensibilidad a la crítica o el rechazo","Puede quedar atrapado en el análisis emocional"],
+    communication:{ style:"Habla poco en grupos, mucho en privado. Sus conversaciones son profundas o no le interesan. Busca el significado detrás de las palabras. La autenticidad es no negociable.", listening:"Escucha con una profundidad que te puede sorprender. Capta lo que no dices. Detecta cuando no eres auténtico.", body_language:"Postura introvertida pero atenta. Expresión facial que revela mucho si lo observas. Sus ojos comunican más que sus palabras." },
+    decision:{ style:"Decide basándose en cómo se siente internamente y si la decisión tiene sentido más allá de lo práctico. El propósito y los valores son filtros fundamentales.", triggers:"El significado detrás de la propuesta, sentir que la decisión está alineada con sus valores y que la persona que le propone es genuina.", blockers:"La superficialidad, la sensación de que solo buscan su dinero, la falta de autenticidad o la presión que no respeta sus tiempos." },
+    sales:{ opener:"Con calma y autenticidad genuina: 'Quería compartirte algo que creo que puede tener sentido para lo que buscas. Sin presión.'", pitch:"Habla del propósito detrás de lo que ofreces. ¿Por qué existe? ¿A quién ayuda realmente? ¿Qué cambia en la vida de quien lo usa? La historia importa más que las características.", objections:"Sus objeciones suelen ser sobre autenticidad y valores: '¿Esto realmente funciona o es solo marketing?' Responde con honestidad total, incluyendo limitaciones.", close:"No hay cierre en caliente. La confianza en ti como persona auténtica es lo que cierra. Dale tiempo y espacio para sentirlo.", after:"Un mensaje personal y reflexivo post-venta. Pregunta cómo se siente con la decisión. Que sienta que te importa él, no la venta." },
+    relationship:{ start:"Sin máscaras. La autenticidad es la única puerta de entrada con este perfil.", build:"Conversaciones profundas y honestas. Comparte algo real de ti mismo — no solo lo profesional. La reciprocidad emocional construye el puente.", maintain:"Mensajes reflexivos. Una recomendación personalizada. Un recuerdo que demuestre que lo conoces y lo valoras como persona.", long_term:"Si logras penetrar su mundo interior, la relación es de las más profundas y duraderas que podrás tener. Será tu confidente y tu defensor más sincero." },
+    fears:"La superficialidad, no encontrar el propósito en lo que hace, ser malentendido, el rechazo emocional.",
+    red_flags:"Si responde con frases cortas y sin emoción, la conexión no se estableció. Si cancela sin mucha explicación, algo lo incomodó. Si te pregunta directamente '¿por qué me traes esto?', está buscando la autenticidad de tu intención.",
+    conversation_starters:["'¿Qué es lo que más te importa lograr en este momento de tu vida?'","'Pensé mucho antes de contactarte — creo que esto puede tener sentido para ti por razones específicas.'","'¿Cómo te sientes con lo que estás haciendo ahorita? ¿Te llena?'"],
+    approach:{ icebreaker:"Con calma y autenticidad total. Sin máscaras ni agenda visible.", trust:"Escucha genuina. Preguntas profundas. Interés real en su mundo interior.", sales:"Propósito, significado y autenticidad. La historia detrás de lo que ofreces.", relationship:"Profundidad o nada. Mensajes reflexivos que demuestren que lo conoces.", avoid:"Superficialidad, presión, frialdad o falta de autenticidad.", phrase:"'Esto tiene un propósito que creo que resonará contigo de verdad.'" }
+  }
+};
+
+// Preguntas de observación para el análisis
+const OBS_QUESTIONS = [
+  { id:1, text:"Al llegar a un lugar nuevo, ¿cómo se comporta?", options:[
+    {text:"Toma control de la situación, da indicaciones o lidera", type:"c"},
+    {text:"Busca conocer a todos, es el alma del grupo desde el inicio", type:"s"},
+    {text:"Se adapta tranquilamente, observa antes de participar", type:"f"},
+    {text:"Se mantiene reservado, analiza el entorno antes de interactuar", type:"m"},
+  ]},
+  { id:2, text:"¿Cómo es su estilo de comunicación?", options:[
+    {text:"Directo, va al grano, da instrucciones o toma la palabra", type:"c"},
+    {text:"Animado, cuenta historias, usa humor, muy expresivo", type:"s"},
+    {text:"Calmado, diplomático, escucha más de lo que habla", type:"f"},
+    {text:"Preciso, detallado, piensa bien antes de hablar", type:"m"},
+  ]},
+  { id:3, text:"¿Cómo toma decisiones?", options:[
+    {text:"Rápido y decidido, confía en su criterio sin dudar mucho", type:"c"},
+    {text:"Impulsivo, se deja llevar por el entusiasmo del momento", type:"s"},
+    {text:"Pausado, busca consenso y evita conflictos", type:"f"},
+    {text:"Analítico, investiga y considera todo antes de decidir", type:"m"},
+  ]},
+  { id:4, text:"Ante un problema o conflicto, ¿qué hace?", options:[
+    {text:"Lo enfrenta directamente, puede volverse confrontacional", type:"c"},
+    {text:"Lo minimiza, busca el lado positivo o cambia el tema", type:"s"},
+    {text:"Lo evita, busca mediación y prioriza la paz", type:"f"},
+    {text:"Lo analiza profundamente, puede preocuparse en exceso", type:"m"},
+  ]},
+  { id:5, text:"¿Cómo describe mejor su ritmo y energía?", options:[
+    {text:"Muy activo, multitarea, siempre orientado a resultados", type:"c"},
+    {text:"Enérgico y entusiasta, aunque se distrae con facilidad", type:"s"},
+    {text:"Constante y tranquilo, prefiere un ritmo estable", type:"f"},
+    {text:"Profundo y concentrado, prefiere una cosa a la vez", type:"m"},
+  ]},
+  { id:6, text:"¿Qué tipo de entornos o situaciones le atraen?", options:[
+    {text:"Posiciones de liderazgo, retos, competencia", type:"c"},
+    {text:"Eventos sociales, grupos, ser el centro de atención", type:"s"},
+    {text:"Ambientes estables, cooperativos, sin conflictos", type:"f"},
+    {text:"Espacios tranquilos, trabajo individual, concentración", type:"m"},
+  ]},
+  { id:7, text:"¿Cómo se relaciona con los demás?", options:[
+    {text:"Exige mucho de otros, puede ser intimidante", type:"c"},
+    {text:"Muy sociable, hace amigos con facilidad en poco tiempo", type:"s"},
+    {text:"Leal y servicial, le cuesta decir no", type:"f"},
+    {text:"Selectivo con sus amistades, prefiere relaciones profundas", type:"m"},
+  ]},
+  { id:8, text:"¿Qué parece motivarle más?", options:[
+    {text:"El logro, ganar, ser el mejor o el primero", type:"c"},
+    {text:"El reconocimiento, la diversión y ser querido", type:"s"},
+    {text:"La estabilidad, la armonía y ayudar a otros", type:"f"},
+    {text:"La perfección, el conocimiento y hacer las cosas bien", type:"m"},
+  ]},
+  { id:9, text:"¿Cómo maneja sus emociones?", options:[
+    {text:"Las expresa con fuerza, puede explotar bajo presión", type:"c"},
+    {text:"Las expresa abiertamente, muy emotivo y expresivo", type:"s"},
+    {text:"Las guarda para no generar conflicto", type:"f"},
+    {text:"Las interioriza profundamente, puede caer en tristeza", type:"m"},
+  ]},
+  { id:10, text:"Cuando hablas con esta persona, ¿qué sientes?", options:[
+    {text:"Que debo demostrar mi valor o conocimiento", type:"c"},
+    {text:"Que disfruto la conversación, me llena de energía", type:"s"},
+    {text:"Que me escucha y comprende genuinamente", type:"f"},
+    {text:"Que es difícil conectar rápido, pero hay profundidad", type:"m"},
+  ]},
+];
+
+// ══════════════════════════════════════════════════════════════
+// ESTADO
+// ══════════════════════════════════════════════════════════════
+let allUsers = [], adminToken = "", activeFilter = "all";
+let obsAnswers = {}, linkedUser = null;
+let allTranscriptions = [];
+let allPerfiles = [], activePerfilFilter = "all";
+let allComments = [], activeCommentsFilter = "all";
+let lastAnalysisResult = null;
+
+// ══════════════════════════════════════════════════════════════
+// AUTH
+// ══════════════════════════════════════════════════════════════
+function doLogin() {
+  const pw = document.getElementById("login-pw").value.trim();
+  if (!pw) return;
+  adminToken = pw;
+  Promise.all([loadUsers(), loadTranscriptions(), loadPerfiles(), loadComments()]).then(() => {
+    const err = document.getElementById("login-error").textContent;
+    if (!err) {
+      document.getElementById("screen-login").style.display = "none";
+      document.getElementById("screen-admin").style.display = "block";
+      renderObsQuestions();
+    }
+  });
+}
+
+function doLogout() {
+  adminToken = ""; allUsers = []; obsAnswers = {};
+  allPerfiles = []; allComments = []; lastAnalysisResult = null;
+  document.getElementById("screen-login").style.display = "flex";
+  document.getElementById("screen-admin").style.display = "none";
+  document.getElementById("login-pw").value = "";
+  document.getElementById("login-error").textContent = "";
+}
+
+// ══════════════════════════════════════════════════════════════
+// TABS
+// ══════════════════════════════════════════════════════════════
+function switchTab(name) {
+  const TAB_ORDER = ["usuarios","perfiles","analisis","transcripciones"];
+  document.querySelectorAll(".admin-tab").forEach((t,i) => {
+    t.classList.toggle("active", TAB_ORDER[i] === name);
+  });
+  document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+  document.getElementById(`tab-${name}`).classList.add("active");
+}
+
+// ══════════════════════════════════════════════════════════════
+// USUARIOS
+// ══════════════════════════════════════════════════════════════
+async function loadUsers() {
+  try {
+    const res = await fetch("/api/users", { headers:{"Authorization":`Bearer ${adminToken}`} });
+    if (res.status === 401) { document.getElementById("login-error").textContent = "Contraseña incorrecta."; adminToken = ""; return; }
+    const data = await res.json();
+    allUsers = data.users || [];
+    renderStats();
+    renderGrid();
+  } catch(e) {
+    document.getElementById("login-error").textContent = "No se pudo conectar con el servidor.";
+  }
+}
+
+function renderStats() {
+  document.getElementById("stat-total").textContent = allUsers.length;
+  ["c","s","f","m"].forEach(t => {
+    document.getElementById(`stat-${t}`).textContent = allUsers.filter(u => u.dominant === t).length;
+  });
+  const rated = allUsers.filter(u => u.puntuacion);
+  const avg   = rated.length ? (rated.reduce((a,u) => a + u.puntuacion, 0) / rated.length).toFixed(1) : "—";
+  document.getElementById("stat-avg").textContent = rated.length ? `${avg}/10` : "—";
+}
+
+function setFilter(type, btn) {
+  activeFilter = type;
+  document.querySelectorAll(".filter-btn").forEach(b => { b.className = "filter-btn"; });
+  btn.className = `filter-btn active ${type}`;
+  renderGrid();
+}
+
+async function deleteUser(event, archivo, nombre) {
+  event.stopPropagation();
+  if (!confirm(`¿Eliminar el resultado de "${nombre}"?\nEsta acción no se puede deshacer.`)) return;
+  try {
+    const res  = await fetch("/api/delete-user", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${adminToken}` },
+      body: JSON.stringify({ archivo }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      allUsers = allUsers.filter(u => u.archivo !== archivo);
+      renderGrid();
+      renderStats();
+    } else {
+      alert("Error al eliminar: " + (data.error || "desconocido"));
+    }
+  } catch (e) {
+    alert("Error de conexión al eliminar.");
+  }
+}
+
+function renderGrid() {
+  const q = document.getElementById("search-input").value.toLowerCase();
+  const filtered = allUsers.filter(u => {
+    const matchF = activeFilter === "all" || u.dominant === activeFilter;
+    const matchS = !q || (u.nombre+" "+u.apellido).toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
+    return matchF && matchS;
+  });
+  const grid = document.getElementById("users-grid");
+  if (!filtered.length) {
+    grid.innerHTML = `<div class="empty-state"><div class="empty-state-icon">🔍</div><div>No se encontraron usuarios</div></div>`;
+    return;
+  }
+  grid.innerHTML = filtered.map(u => {
+    const color = TYPE_COLORS[u.dominant]||"#6B21A8";
+    const secColor = TYPE_COLORS[u.secondary]||"#6B21A8";
+    const fecha = u.timestamp ? u.timestamp.slice(0,10) : "";
+    return `<div class="user-card" onclick="openModal('${u.archivo}')">
+      <div class="user-card-bar" style="background:linear-gradient(90deg,${color},${secColor})"></div>
+      <div class="user-card-body">
+        <div class="user-card-name-row">
+          <div>
+            <div class="user-card-name">${u.nombre} ${u.apellido}</div>
+            <div class="user-card-email">${u.email}</div>
+          </div>
+          <button class="btn-delete-card" title="Eliminar resultado" onclick="deleteUser(event,'${u.archivo}','${u.nombre} ${u.apellido}')">🗑️</button>
+        </div>
+        <div class="user-card-badges">
+          <span class="temp-badge ${u.dominant}">${TYPE_EMOJIS[u.dominant]||""} ${TYPE_NAMES[u.dominant]||u.dominant}</span>
+          <span class="temp-badge ${u.secondary} sec">${TYPE_EMOJIS[u.secondary]||""} ${TYPE_NAMES[u.secondary]||u.secondary}</span>
+        </div>
+        <div class="user-card-meta">
+          <span>📅 ${fecha}</span>
+          ${u.con_foto?'<span>📷 Foto</span>':''}
+          ${u.pdf?'<span>📄 PDF</span>':''}
+          ${u.puntuacion?`<span>⭐ ${u.puntuacion}/10</span>`:''}
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function openModal(archivo) {
+  const u = allUsers.find(x => x.archivo === archivo);
+  if (!u) return;
+  const prof = u.profile||{}, ap = prof.approach||{};
+  const color = TYPE_COLORS[u.dominant]||"#6B21A8";
+  const TOTAL_Q = 20;
+  document.getElementById("modal-name").textContent  = `${u.nombre} ${u.apellido}`;
+  document.getElementById("modal-email").textContent = u.email;
+  const scoresHtml = Object.entries(u.scores||{}).sort((a,b)=>b[1]-a[1]).map(([t,v])=>{
+    const pct = Math.round((v/(TOTAL_Q*2))*100);
+    return `<div class="score-row-m">
+      <div class="lbl">${TYPE_EMOJIS[t]||""} ${TYPE_NAMES[t]||t}</div>
+      <div class="score-bar-m"><div class="score-bar-m-fill" style="background:${TYPE_COLORS[t]||'#999'};width:${pct}%"></div></div>
+      <div class="score-pct-m">${pct}%</div>
+    </div>`;
+  }).join("");
+  const approachItems = [
+    ["Para romper el hielo", ap.icebreaker],["Para crear confianza", ap.trust],
+    ["Para vender", ap.sales],["Para mantener relación", ap.relationship],["Lo que los aleja", ap.avoid],
+  ].filter(([,v])=>v);
+  const pdfLink = u.pdf
+    ? `<a class="btn-primary" href="/api/pdf/${u.pdf}" target="_blank">📄 Ver PDF</a>`
+    : `<span style="font-size:13px;color:var(--gray-400)">Sin PDF</span>`;
+  document.getElementById("modal-body").innerHTML = `
+    <div class="modal-section">
+      <div class="modal-section-title">Temperamento</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+        <span class="temp-badge ${u.dominant}" style="font-size:13px;padding:5px 14px">${TYPE_EMOJIS[u.dominant]||""} ${TYPE_NAMES[u.dominant]||u.dominant} (dominante)</span>
+        <span class="temp-badge ${u.secondary} sec" style="font-size:13px;padding:5px 14px">${TYPE_EMOJIS[u.secondary]||""} ${TYPE_NAMES[u.secondary]||u.secondary} (secundario)</span>
+      </div>
+      <div style="font-size:14px;color:var(--gray-600)">${prof.title||""} — ${prof.subtitle||""}</div>
+      ${u.puntuacion ? `<div style="font-size:13px;margin-top:6px;color:#16A34A">⭐ Calificación del usuario: ${u.puntuacion}/10</div>` : ""}
+    </div>
+    <div class="modal-section"><div class="modal-section-title">Puntajes</div>${scoresHtml}</div>
+    ${(prof.strengths||[]).length?`<div class="modal-section"><div class="modal-section-title">Fortalezas</div><ul class="strengths-m">${(prof.strengths||[]).map(s=>`<li>${s}</li>`).join("")}</ul></div>`:""}
+    ${approachItems.length?`<div class="modal-section"><div class="modal-section-title">🤝 Cómo conectar</div>${approachItems.map(([l,t])=>`<div class="approach-item"><div class="approach-item-label">${l}</div><div class="approach-item-text">${t}</div></div>`).join("")}${ap.phrase?`<div class="phrase-box">"${ap.phrase}"</div>`:""}</div>`:""}
+    <div class="modal-actions">${pdfLink}<button class="btn-ghost" onclick="copyEmail('${u.email}')">📋 Copiar email</button></div>
+  `;
+  document.getElementById("modal-overlay").classList.add("open");
+}
+
+function closeModal(e) {
+  if (e && e.target !== document.getElementById("modal-overlay")) return;
+  document.getElementById("modal-overlay").classList.remove("open");
+}
+
+function copyEmail(email) {
+  navigator.clipboard.writeText(email).then(() => alert("Email copiado: " + email));
+}
+
+// ══════════════════════════════════════════════════════════════
+// ANÁLISIS DE PERSONA
+// ══════════════════════════════════════════════════════════════
+function renderObsQuestions() {
+  const container = document.getElementById("obs-questions-container");
+  container.innerHTML = OBS_QUESTIONS.map(q => `
+    <div class="obs-question" id="obsq-${q.id}">
+      <div class="obs-question-text">${q.id}. ${q.text}</div>
+      <div class="obs-options">
+        ${q.options.map(opt => `
+          <button class="obs-option" data-qid="${q.id}" data-type="${opt.type}"
+            onclick="selectObs(${q.id},'${opt.type}',this)">
+            <div class="obs-option-dot"></div>
+            <span>${opt.text}</span>
+          </button>`).join("")}
+      </div>
+    </div>`).join("");
+}
+
+function selectObs(qid, type, btn) {
+  document.querySelectorAll(`[data-qid="${qid}"]`).forEach(b => b.classList.remove("selected"));
+  btn.classList.add("selected");
+  obsAnswers[qid] = type;
+  const answered = Object.keys(obsAnswers).length;
+  document.getElementById("obs-analyze-btn").disabled = answered < OBS_QUESTIONS.length;
+}
+
+// ── USUARIO VINCULADO ─────────────────────────────────────────
+function searchLinkedUser() {
+  const q = document.getElementById("user-link-search").value.toLowerCase().trim();
+  const resultsEl = document.getElementById("user-link-results");
+  if (!q || q.length < 2) { resultsEl.innerHTML = ""; return; }
+  const matches = allUsers.filter(u =>
+    (u.nombre+" "+u.apellido).toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
+  ).slice(0, 5);
+  if (!matches.length) {
+    resultsEl.innerHTML = `<div style="font-size:13px;color:var(--gray-400);padding:8px 0">No se encontraron usuarios</div>`;
+    return;
+  }
+  resultsEl.innerHTML = matches.map(u => `
+    <div class="user-link-result-item" onclick="selectLinkedUser('${u.archivo}')">
+      <div>
+        <div class="user-link-result-name">${u.nombre} ${u.apellido}</div>
+        <div class="user-link-result-meta">${u.email} · ${TYPE_EMOJIS[u.dominant]||""} ${TYPE_NAMES[u.dominant]||u.dominant} · ${u.timestamp?u.timestamp.slice(0,10):""}</div>
+      </div>
+      <span class="temp-badge ${u.dominant}" style="font-size:11px">${TYPE_NAMES[u.dominant]||u.dominant}</span>
+    </div>`).join("");
+}
+
+function selectLinkedUser(archivo) {
+  linkedUser = allUsers.find(u => u.archivo === archivo);
+  if (!linkedUser) return;
+  document.getElementById("user-link-results").innerHTML = "";
+  document.getElementById("user-link-search").value = "";
+  const sel = document.getElementById("user-link-selected");
+  sel.style.display = "block";
+  const prof = linkedUser.profile || {};
+  sel.innerHTML = `
+    <div class="user-link-selected-name">✅ ${linkedUser.nombre} ${linkedUser.apellido}</div>
+    <div class="user-link-selected-info">
+      ${linkedUser.email} · ${TYPE_EMOJIS[linkedUser.dominant]||""} ${TYPE_NAMES[linkedUser.dominant]||linkedUser.dominant} + ${TYPE_EMOJIS[linkedUser.secondary]||""} ${TYPE_NAMES[linkedUser.secondary]||linkedUser.secondary}
+      · Precisión reportada: ${linkedUser.puntuacion ? linkedUser.puntuacion+"/10" : "sin calificar"}
+      ${linkedUser.pdf ? `· <a href="/api/pdf/${linkedUser.pdf}" target="_blank" style="color:var(--accent)">Ver PDF</a>` : ""}
+    </div>`;
+  if (!document.getElementById("obs-nombre").value)
+    document.getElementById("obs-nombre").value = `${linkedUser.nombre} ${linkedUser.apellido}`;
+}
+
+function clearLinkedUser() {
+  linkedUser = null;
+  document.getElementById("user-link-search").value = "";
+  document.getElementById("user-link-results").innerHTML = "";
+  document.getElementById("user-link-selected").style.display = "none";
+}
+
+// ── ANÁLISIS PROFUNDO ─────────────────────────────────────────
+function analyzeObs() {
+  const scores = {c:0, s:0, f:0, m:0};
+  Object.values(obsAnswers).forEach(t => { if (scores[t]!==undefined) scores[t]+=2; });
+  const sorted = Object.entries(scores).sort((a,b)=>b[1]-a[1]);
+  const dominant  = sorted[0][0];
+  const neighbors = NEIGHBORS[dominant];
+  const validSec  = sorted.slice(1).filter(([t])=>neighbors.includes(t));
+  const secondary = validSec.length ? validSec[0][0] : neighbors[0];
+  const key  = `${dominant}-${secondary}`;
+  const prof = PROFILES[key];
+  if (!prof) return;
+
+  const nombre   = document.getElementById("obs-nombre").value.trim() || "Esta persona";
+  const contexto = document.getElementById("obs-contexto").value.trim();
+  const fisico   = document.getElementById("obs-fisico").value.trim();
+  const notas    = document.getElementById("obs-notas").value.trim();
+  const domColor = TYPE_COLORS[dominant];
+  const secColor = TYPE_COLORS[secondary];
+  const totalQ   = OBS_QUESTIONS.length * 2;
+
+  // Confianza del diagnóstico
+  const topScore  = sorted[0][1];
+  const confidence = Math.round((topScore / totalQ) * 100);
+  const confLabel  = confidence >= 60 ? "Alta" : confidence >= 40 ? "Media" : "Moderada";
+  const confColor  = confidence >= 60 ? "#16A34A" : confidence >= 40 ? "#F59E0B" : "#6B7280";
+
+  // Scores bar
+  const scoresHtml = Object.entries(scores).sort((a,b)=>b[1]-a[1]).map(([t,v])=>{
+    const pct = Math.round((v/totalQ)*100);
+    return `<div class="score-row-m">
+      <div class="lbl">${TYPE_EMOJIS[t]} ${TYPE_NAMES[t]}</div>
+      <div class="score-bar-m"><div class="score-bar-m-fill" style="background:${TYPE_COLORS[t]};width:${pct}%"></div></div>
+      <div class="score-pct-m">${pct}%</div>
+    </div>`;
+  }).join("");
+
+  // Perfil del app si está vinculado
+  const appProfileHtml = linkedUser ? (() => {
+    const lp = linkedUser.profile || {};
+    const TOTAL_APP_Q = 20;
+    const appScores = Object.entries(linkedUser.scores||{}).sort((a,b)=>b[1]-a[1]).map(([t,v])=>{
+      const pct = Math.round((v/(TOTAL_APP_Q*2))*100);
+      return `<div class="score-row-m" style="margin-bottom:6px">
+        <div class="lbl" style="font-size:12px">${TYPE_EMOJIS[t]} ${TYPE_NAMES[t]}</div>
+        <div class="score-bar-m"><div class="score-bar-m-fill" style="background:${TYPE_COLORS[t]};width:${pct}%"></div></div>
+        <div class="score-pct-m">${pct}%</div>
+      </div>`;
+    }).join("");
+    return `
+      <div class="app-profile-banner">
+        <div class="app-profile-banner-header">
+          📱 Perfil confirmado desde la App — ${linkedUser.nombre} ${linkedUser.apellido}
+          ${linkedUser.puntuacion ? `· Precisión autoreportada: <strong>${linkedUser.puntuacion}/10</strong>` : ""}
+          ${linkedUser.pdf ? `· <a href="/api/pdf/${linkedUser.pdf}" target="_blank" style="color:#D8B4FE">Ver PDF completo</a>` : ""}
+        </div>
+        <div class="app-profile-banner-body">
+          <strong>${lp.title||""}</strong> — ${lp.subtitle||""}<br>
+          <span style="color:var(--gray-600)">${lp.description||""}</span>
+          <div style="margin-top:10px">${appScores}</div>
+          ${linkedUser.puntuacion >= 8 ? `<div style="color:#16A34A;font-size:12px;margin-top:6px;font-weight:600">✅ Alta coincidencia — el usuario validó este perfil con ${linkedUser.puntuacion}/10</div>` : ""}
+        </div>
+      </div>`;
+  })() : "";
+
+  const com = prof.communication || {};
+  const dec = prof.decision || {};
+  const sal = prof.sales || {};
+  const rel = prof.relationship || {};
+  const ap  = prof.approach || {};
+  const starters = (prof.conversation_starters || []).map(s=>`<span class="starter-pill">${s}</span>`).join("");
+
+  const result = document.getElementById("analysis-result");
+  result.className = "analysis-result show";
+  result.innerHTML = `
+    <div class="analysis-result-hero" style="background:linear-gradient(135deg,${domColor},${secColor})">
+      <div class="analysis-result-name">${nombre}${contexto ? " · "+contexto : ""}</div>
+      <div class="analysis-result-combo">${TYPE_EMOJIS[dominant]} ${TYPE_NAMES[dominant]} · ${TYPE_EMOJIS[secondary]} ${TYPE_NAMES[secondary]}</div>
+      <div class="analysis-result-title">${prof.title}</div>
+      <div class="analysis-result-desc">${prof.description}</div>
+    </div>
+
+    <div class="analysis-result-body">
+
+      ${appProfileHtml}
+
+      <!-- SCORES + CONFIANZA -->
+      <div class="deep-section">
+        <div class="deep-section-title">📊 Distribución de temperamentos</div>
+        ${scoresHtml}
+        <div class="score-confidence" style="color:${confColor}">Confianza del diagnóstico: <strong>${confLabel} (${confidence}%)</strong> — basado en ${Object.keys(obsAnswers).length} observaciones</div>
+      </div>
+
+      <!-- CÓMO SE COMUNICA -->
+      <div class="deep-section">
+        <div class="deep-section-title">💬 Cómo se comunica</div>
+        ${com.style ? `<div class="deep-item"><div class="deep-item-label">Estilo de comunicación</div><div class="deep-item-text">${com.style}</div></div>` : ""}
+        ${com.listening ? `<div class="deep-item"><div class="deep-item-label">Cómo escucha</div><div class="deep-item-text">${com.listening}</div></div>` : ""}
+        ${com.body_language ? `<div class="deep-item"><div class="deep-item-label">Lenguaje corporal</div><div class="deep-item-text">${com.body_language}</div></div>` : ""}
+      </div>
+
+      <!-- CÓMO DECIDE -->
+      <div class="deep-section">
+        <div class="deep-section-title">🧠 Cómo toma decisiones</div>
+        ${dec.style ? `<div class="deep-item"><div class="deep-item-label">Proceso de decisión</div><div class="deep-item-text">${dec.style}</div></div>` : ""}
+        ${dec.triggers ? `<div class="deep-item"><div class="deep-item-label">Lo que lo mueve a decidir</div><div class="deep-item-text">${dec.triggers}</div></div>` : ""}
+        ${dec.blockers ? `<div class="deep-item"><div class="deep-item-label">Lo que bloquea la decisión</div><div class="deep-item-text">${dec.blockers}</div></div>` : ""}
+      </div>
+
+      <!-- ESTRATEGIA DE VENTAS -->
+      <div class="deep-section">
+        <div class="deep-section-title">💼 Estrategia de ventas y cierre</div>
+        ${sal.opener ? `<div class="deep-item"><div class="deep-item-label">Cómo abrir la conversación</div><div class="deep-item-text">${sal.opener}</div></div>` : ""}
+        ${sal.pitch ? `<div class="deep-item"><div class="deep-item-label">Cómo presentar tu propuesta</div><div class="deep-item-text">${sal.pitch}</div></div>` : ""}
+        ${sal.objections ? `<div class="deep-item"><div class="deep-item-label">Cómo manejar sus objeciones</div><div class="deep-item-text">${sal.objections}</div></div>` : ""}
+        ${sal.close ? `<div class="deep-item"><div class="deep-item-label">Cómo cerrar</div><div class="deep-item-text">${sal.close}</div></div>` : ""}
+        ${sal.after ? `<div class="deep-item"><div class="deep-item-label">Qué hacer después del cierre</div><div class="deep-item-text">${sal.after}</div></div>` : ""}
+      </div>
+
+      <!-- ESTRATEGIA DE RELACIÓN -->
+      <div class="deep-section">
+        <div class="deep-section-title">🤝 Estrategia de relación</div>
+        ${rel.start ? `<div class="deep-item"><div class="deep-item-label">Cómo comenzar</div><div class="deep-item-text">${rel.start}</div></div>` : ""}
+        ${rel.build ? `<div class="deep-item"><div class="deep-item-label">Cómo construir confianza</div><div class="deep-item-text">${rel.build}</div></div>` : ""}
+        ${rel.maintain ? `<div class="deep-item"><div class="deep-item-label">Cómo mantener la relación</div><div class="deep-item-text">${rel.maintain}</div></div>` : ""}
+        ${rel.long_term ? `<div class="deep-item"><div class="deep-item-label">A largo plazo</div><div class="deep-item-text">${rel.long_term}</div></div>` : ""}
+      </div>
+
+      <!-- FRASE QUE CONECTA -->
+      <div class="analysis-phrase">"${ap.phrase||""}"</div>
+
+      <!-- FRASES DE APERTURA -->
+      ${starters ? `<div class="deep-section" style="margin-top:12px">
+        <div class="deep-section-title">💡 Frases concretas para abrir la conversación</div>
+        <div>${starters}</div>
+      </div>` : ""}
+
+      <!-- SEÑALES DE ALERTA -->
+      ${prof.red_flags ? `<div class="deep-alert">
+        <div class="deep-alert-label">🚨 Señales de alerta — cuándo cambiar de estrategia</div>
+        <div class="deep-alert-text">${prof.red_flags}</div>
+      </div>` : ""}
+
+      <!-- SUS MIEDOS (para que no los actives) -->
+      ${prof.fears ? `<div class="deep-section">
+        <div class="deep-section-title">😰 Sus miedos y puntos sensibles (para no activarlos)</div>
+        <div class="deep-item-text" style="font-size:13px">${prof.fears}</div>
+      </div>` : ""}
+
+      <!-- FORTALEZAS Y DEBILIDADES -->
+      <div class="deep-section">
+        <div class="deep-section-title">✨ Sus fortalezas — úsalas a tu favor</div>
+        <ul class="analysis-list">${(prof.strengths||[]).map(s=>`<li>${s}</li>`).join("")}</ul>
+      </div>
+      <div class="deep-section">
+        <div class="deep-section-title">🔧 Sus áreas débiles — con las que puedes ayudarle</div>
+        <ul class="analysis-list">${(prof.weaknesses||[]).map(w=>`<li>${w}</li>`).join("")}</ul>
+      </div>
+
+      <!-- RASGOS FÍSICOS -->
+      ${fisico ? `<div class="deep-section">
+        <div class="deep-section-title">👁️ Rasgos físicos que observaste</div>
+        <div class="deep-item-text">${fisico}</div>
+        <div style="font-size:11px;color:var(--gray-400);margin-top:6px;font-style:italic">Observación directa tuya. Compárala con el perfil ${TYPE_NAMES[dominant]} para validar el diagnóstico.</div>
+      </div>` : ""}
+
+      <!-- NOTAS -->
+      ${notas ? `<div class="deep-section">
+        <div class="deep-section-title">📝 Notas adicionales</div>
+        <div class="deep-item-text">${notas}</div>
+      </div>` : ""}
+
+    </div>`;
+
+  result.scrollIntoView({behavior:"smooth", block:"start"});
+
+  // Guardar resultado para el botón "Guardar perfil"
+  lastAnalysisResult = {
+    nombre,
+    contexto,
+    fisico,
+    notas,
+    dominant,
+    secondary,
+    dominant_name: TYPE_NAMES[dominant],
+    secondary_name: TYPE_NAMES[secondary],
+    perfil: prof.title + " — " + (prof.subtitle || ""),
+    confianza: confidence,
+    scores,
+    profile: prof,
+    linked_user: linkedUser ? {
+      archivo:   linkedUser.archivo,
+      nombre:    linkedUser.nombre,
+      apellido:  linkedUser.apellido,
+      email:     linkedUser.email,
+      perfil:    linkedUser.perfil,
+      puntuacion: linkedUser.puntuacion,
+    } : null,
+  };
+
+  // Mostrar botón guardar y resetear su estado
+  const saveWrap = document.getElementById("save-perfil-wrap");
+  const saveBtn  = document.getElementById("save-perfil-btn");
+  const saveStatus = document.getElementById("save-perfil-status");
+  if (saveWrap) {
+    saveWrap.style.display = "block";
+    saveBtn.disabled = false;
+    saveStatus.textContent = "";
+    saveWrap.scrollIntoView({behavior:"smooth", block:"nearest"});
+  }
+}
+
+function resetAnalysis() {
+  obsAnswers = {};
+  linkedUser = null;
+  lastAnalysisResult = null;
+  document.querySelectorAll(".obs-option").forEach(b => b.classList.remove("selected"));
+  document.getElementById("obs-analyze-btn").disabled = true;
+  document.getElementById("analysis-result").className = "analysis-result";
+  const saveWrap = document.getElementById("save-perfil-wrap");
+  if (saveWrap) saveWrap.style.display = "none";
+  document.getElementById("obs-nombre").value = "";
+  document.getElementById("obs-contexto").value = "";
+  document.getElementById("obs-fisico").value = "";
+  document.getElementById("obs-notas").value = "";
+  clearLinkedUser();
+  window.scrollTo({top:0, behavior:"smooth"});
+}
+
+// ══════════════════════════════════════════════════════════════
+// TRANSCRIPCIONES
+// ══════════════════════════════════════════════════════════════
+async function loadTranscriptions() {
+  try {
+    const res = await fetch("/api/transcriptions", { headers:{"Authorization":`Bearer ${adminToken}`} });
+    if (res.status === 401) return;
+    const data = await res.json();
+    allTranscriptions = data.transcriptions || [];
+    renderTransList();
+  } catch(e) {}
+}
+
+function renderTransList() {
+  const list = document.getElementById("trans-list");
+  if (!allTranscriptions.length) {
+    list.innerHTML = `<div style="text-align:center;padding:30px;color:var(--gray-400)">No hay fuentes guardadas aún</div>`;
+    return;
+  }
+  const newCount = allTranscriptions.filter(t=>!t.synced).length;
+  document.getElementById("nlm-btn").textContent = newCount
+    ? `📓 Actualizar NotebookLM (${newCount} nuevas)`
+    : "📓 NotebookLM — todo actualizado";
+  list.innerHTML = allTranscriptions.map(t => `
+    <div class="trans-list-item">
+      <div class="trans-list-item-info">
+        <div class="trans-list-item-title">${t.titulo}</div>
+        <div class="trans-list-item-meta">${t.tipo} · ${t.autor||"Sin autor"} · ${t.fecha||""}</div>
+      </div>
+      <span class="trans-badge ${t.synced?'synced':'new'}">${t.synced?'Sincronizada':'Nueva'}</span>
+    </div>`).join("");
+}
+
+async function saveTranscription() {
+  const titulo    = document.getElementById("trans-titulo").value.trim();
+  const tipo      = document.getElementById("trans-tipo").value;
+  const autor     = document.getElementById("trans-autor").value.trim();
+  const contenido = document.getElementById("trans-contenido").value.trim();
+  const statusEl  = document.getElementById("trans-save-status");
+
+  if (!titulo || !contenido) { statusEl.textContent = "⚠️ Título y contenido son obligatorios"; return; }
+  statusEl.textContent = "Guardando...";
+
+  try {
+    const res = await fetch("/api/transcription", {
+      method:"POST",
+      headers:{"Content-Type":"application/json","Authorization":`Bearer ${adminToken}`},
+      body: JSON.stringify({titulo, tipo, autor, contenido}),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      statusEl.textContent = "✅ Guardada correctamente";
+      document.getElementById("trans-titulo").value = "";
+      document.getElementById("trans-autor").value = "";
+      document.getElementById("trans-contenido").value = "";
+      await loadTranscriptions();
+      setTimeout(()=>{ statusEl.textContent=""; }, 3000);
+    } else throw new Error(data.error);
+  } catch(e) {
+    statusEl.textContent = "❌ Error: " + e.message;
+  }
+}
+
+async function exportForNotebookLM() {
+  const btn = document.getElementById("nlm-btn");
+  const statusEl = document.getElementById("nlm-status");
+  btn.disabled = true;
+  statusEl.className = "nlm-status";
+  statusEl.textContent = "Generando archivo...";
+
+  try {
+    const res = await fetch("/api/notebooklm-export", {
+      headers:{"Authorization":`Bearer ${adminToken}`}
+    });
+    if (!res.ok) throw new Error("Error del servidor");
+
+    const blob = await res.blob();
+    const newCount = parseInt(res.headers.get("X-New-Count")||"0");
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href     = url;
+    a.download = `biotipos_fuentes_${new Date().toISOString().slice(0,10)}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    statusEl.className = "nlm-status ok";
+    statusEl.textContent = `✅ Archivo descargado. Súbelo a NotebookLM como nueva fuente.`;
+    await loadTranscriptions();
+  } catch(e) {
+    statusEl.className = "nlm-status err";
+    statusEl.textContent = "❌ No se pudo generar el archivo.";
+  }
+  btn.disabled = false;
+}
+
+// ══════════════════════════════════════════════════════════════
+// PERFILES ANALIZADOS
+// ══════════════════════════════════════════════════════════════
+async function loadPerfiles() {
+  try {
+    const res = await fetch("/api/perfiles", { headers:{"Authorization":`Bearer ${adminToken}`} });
+    if (res.status === 401) return;
+    const data = await res.json();
+    allPerfiles = data.perfiles || [];
+    renderPerfilesStats();
+    renderPerfiles();
+  } catch(e) {}
+}
+
+function renderPerfilesStats() {
+  const el = document.getElementById("perfiles-stats");
+  if (!el) return;
+  const counts = { c:0, s:0, f:0, m:0 };
+  allPerfiles.forEach(p => { if (counts[p.dominant] !== undefined) counts[p.dominant]++; });
+  el.innerHTML = `
+    <div class="stat-chip"><div class="stat-n">${allPerfiles.length}</div><div class="stat-l">Perfiles</div></div>
+    <div class="stat-chip c"><div class="stat-n">${counts.c}</div><div class="stat-l">🔥 Colérico</div></div>
+    <div class="stat-chip s"><div class="stat-n">${counts.s}</div><div class="stat-l">☀️ Sanguíneo</div></div>
+    <div class="stat-chip f"><div class="stat-n">${counts.f}</div><div class="stat-l">🌊 Flemático</div></div>
+    <div class="stat-chip m"><div class="stat-n">${counts.m}</div><div class="stat-l">🌙 Melancólico</div></div>
+  `;
+}
+
+function setPerfilFilter(type, btn) {
+  activePerfilFilter = type;
+  document.querySelectorAll("#tab-perfiles .filter-btn").forEach(b => { b.className = "filter-btn"; });
+  btn.className = `filter-btn active ${type}`;
+  renderPerfiles();
+}
+
+function renderPerfiles() {
+  const q = (document.getElementById("perfiles-search")?.value || "").toLowerCase();
+  const filtered = allPerfiles.filter(p => {
+    const matchF = activePerfilFilter === "all" || p.dominant === activePerfilFilter;
+    const matchS = !q || p.nombre.toLowerCase().includes(q) || (p.contexto||"").toLowerCase().includes(q);
+    return matchF && matchS;
+  });
+  const grid = document.getElementById("perfiles-grid");
+  if (!filtered.length) {
+    grid.innerHTML = `<div class="empty-state"><div class="empty-state-icon">🔍</div><div>No se encontraron perfiles</div></div>`;
+    return;
+  }
+  grid.innerHTML = filtered.map(p => {
+    const color    = TYPE_COLORS[p.dominant] || "#6B21A8";
+    const secColor = TYPE_COLORS[p.secondary] || "#6B21A8";
+    const conf     = p.confianza ? `${p.confianza}% confianza` : "";
+    const linked   = p.linked_user ? `🔗 Vinculado` : "";
+    return `<div class="user-card" onclick="openPerfilModal('${p.archivo}')">
+      <div class="user-card-bar" style="background:linear-gradient(90deg,${color},${secColor})"></div>
+      <div class="user-card-body">
+        <div class="user-card-name">${p.nombre}</div>
+        <div class="user-card-email perfil-card-observed">${p.contexto || "Sin contexto"}</div>
+        <div class="user-card-badges">
+          <span class="temp-badge ${p.dominant}">${TYPE_EMOJIS[p.dominant]||""} ${p.dominant_name||p.dominant}</span>
+          <span class="temp-badge ${p.secondary} sec">${TYPE_EMOJIS[p.secondary]||""} ${p.secondary_name||p.secondary}</span>
+        </div>
+        <div class="user-card-meta">
+          <span>📅 ${p.fecha||""}</span>
+          ${conf ? `<span>🎯 ${conf}</span>` : ""}
+          ${linked ? `<span>${linked}</span>` : ""}
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function openPerfilModal(archivo) {
+  const p = allPerfiles.find(x => x.archivo === archivo);
+  if (!p) return;
+  const prof = p.profile || {}, ap = prof.approach || {};
+  const color = TYPE_COLORS[p.dominant] || "#6B21A8";
+  document.getElementById("modal-name").textContent  = p.nombre;
+  document.getElementById("modal-email").textContent = p.contexto || "Análisis de observación";
+  const approachItems = [
+    ["Para romper el hielo", ap.icebreaker], ["Para crear confianza", ap.trust],
+    ["Para vender", ap.sales], ["Para mantener relación", ap.relationship], ["Lo que los aleja", ap.avoid],
+  ].filter(([,v])=>v);
+  document.getElementById("modal-body").innerHTML = `
+    <div class="modal-section">
+      <div class="modal-section-title">Temperamento</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+        <span class="temp-badge ${p.dominant}" style="font-size:13px;padding:5px 14px">${TYPE_EMOJIS[p.dominant]||""} ${p.dominant_name} (dominante)</span>
+        <span class="temp-badge ${p.secondary}" style="font-size:13px;padding:5px 14px">${TYPE_EMOJIS[p.secondary]||""} ${p.secondary_name} (secundario)</span>
+      </div>
+      ${p.confianza ? `<div class="score-confidence">Confianza del análisis: ${p.confianza}%</div>` : ""}
+    </div>
+    ${prof.title ? `<div class="modal-section">
+      <div class="modal-section-title">Perfil</div>
+      <div style="font-weight:700;font-size:16px;color:${color};margin-bottom:4px">${prof.title}</div>
+      <div style="font-size:13px;color:var(--gray-600);margin-bottom:8px">${prof.subtitle||""}</div>
+      <div style="font-size:13px;line-height:1.6">${prof.description||""}</div>
+    </div>` : ""}
+    ${approachItems.length ? `<div class="modal-section">
+      <div class="modal-section-title">Cómo conectar</div>
+      ${approachItems.map(([lbl,txt])=>`<div class="approach-item"><div class="approach-item-label">${lbl}</div><div class="approach-item-text">${txt}</div></div>`).join("")}
+      ${ap.phrase?`<div class="phrase-box">"${ap.phrase}"</div>`:""}
+    </div>` : ""}
+    ${prof.strengths?.length ? `<div class="modal-section">
+      <div class="modal-section-title">Fortalezas</div>
+      <ul class="strengths-m">${prof.strengths.map(s=>`<li>${s}</li>`).join("")}</ul>
+    </div>` : ""}
+  `;
+  document.getElementById("modal-overlay").classList.add("open");
+}
+
+async function savePerfil() {
+  if (!lastAnalysisResult) return;
+  const btn      = document.getElementById("save-perfil-btn");
+  const statusEl = document.getElementById("save-perfil-status");
+  btn.disabled   = true;
+  statusEl.textContent = "Guardando...";
+
+  try {
+    const res = await fetch("/api/perfiles", {
+      method: "POST",
+      headers: { "Content-Type":"application/json", "Authorization":`Bearer ${adminToken}` },
+      body: JSON.stringify(lastAnalysisResult),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      statusEl.textContent = "✅ Perfil guardado";
+      await loadPerfiles();
+      setTimeout(()=>{ statusEl.textContent=""; }, 3000);
+    } else throw new Error(data.error);
+  } catch(e) {
+    statusEl.textContent = "❌ Error: " + e.message;
+    btn.disabled = false;
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// COMENTARIOS Y APORTES DE EXPERTOS
+// ══════════════════════════════════════════════════════════════
+async function loadComments() {
+  try {
+    const res = await fetch("/api/comments", { headers:{"Authorization":`Bearer ${adminToken}`} });
+    if (res.status === 401) return;
+    const data = await res.json();
+    allComments = data.comments || [];
+    renderComments();
+  } catch(e) {}
+}
+
+function filterComments(type, btn) {
+  activeCommentsFilter = type;
+  document.querySelectorAll("#comments-card .filter-btn").forEach(b => { b.className = "filter-btn"; });
+  if (btn) btn.className = `filter-btn active all`;
+  renderComments();
+}
+
+function renderComments() {
+  const el = document.getElementById("comments-list");
+  if (!el) return;
+
+  let filtered = allComments;
+  if (activeCommentsFilter === "expert") filtered = allComments.filter(c => c.es_experto);
+  if (activeCommentsFilter === "pending") filtered = allComments.filter(c => c.es_experto && !c.aprobado);
+
+  if (!filtered.length) {
+    el.innerHTML = `<div style="text-align:center;padding:24px;color:var(--gray-400);font-size:13px">No hay aportes en esta categoría</div>`;
+    return;
+  }
+
+  el.innerHTML = filtered.map(c => {
+    const cls = c.es_experto ? (c.aprobado ? "comment-item approved" : "comment-item expert") : "comment-item";
+    const badge = c.es_experto
+      ? (c.aprobado ? `<span class="approved-badge">✓ Aprobado</span>` : `<span class="expert-badge">🎓 Experto</span>`)
+      : "";
+    const rating = c.puntuacion ? `· ⭐ ${c.puntuacion}/10` : "";
+    const creds = (c.especialidad || c.credenciales)
+      ? `<div class="comment-item-creds">🎓 ${[c.especialidad, c.credenciales].filter(Boolean).join(" · ")}</div>`
+      : "";
+    const approveBtn = (c.es_experto && !c.aprobado)
+      ? `<button class="btn-approve" onclick="approveComment('${c.archivo}', this)">✓ Aprobar y añadir a Fuentes</button>`
+      : "";
+    return `<div class="${cls}" id="comment-${c.archivo.replace('.json','')}">
+      <div class="comment-item-header">
+        <span class="comment-item-name">${c.nombre || "Usuario"}</span>
+        <span class="comment-item-meta">${c.perfil||""} ${rating} · ${c.fecha||""}</span>
+        ${badge}
+      </div>
+      ${creds}
+      <div class="comment-item-text">${c.comentario}</div>
+      <div class="comment-item-actions">
+        ${approveBtn}
+        ${c.aprobado ? `<span style="font-size:12px;color:#16A34A;font-weight:600">Integrado a Fuentes de conocimiento</span>` : ""}
+      </div>
+    </div>`;
+  }).join("");
+}
+
+async function approveComment(archivo, btn) {
+  btn.disabled = true;
+  btn.textContent = "Aprobando...";
+  try {
+    const res = await fetch("/api/approve-comment", {
+      method:"POST",
+      headers:{"Content-Type":"application/json","Authorization":`Bearer ${adminToken}`},
+      body: JSON.stringify({ archivo }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      await Promise.all([loadComments(), loadTranscriptions()]);
+    } else throw new Error(data.error);
+  } catch(e) {
+    btn.disabled = false;
+    btn.textContent = "✓ Aprobar y añadir a Fuentes";
+    alert("Error: " + e.message);
+  }
+}
+</script>
+</body>
+</html>

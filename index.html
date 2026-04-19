@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Biotipos — Descubre tu temperamento</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!--  PANTALLA 1: LANDING                           -->
+<!-- ═══════════════════════════════════════════════ -->
+<div id="screen-landing" class="screen active">
+  <div class="landing-container">
+    <div class="landing-badge">🧬 Análisis de Temperamento</div>
+    <h1 class="landing-title">Descubre quién<br>eres de verdad.</h1>
+    <p class="landing-subtitle">
+      En menos de 4 minutos, conoce tu temperamento dominante,<br>
+      tus fortalezas únicas y cómo conectar mejor con el mundo.
+    </p>
+    <div class="landing-temps">
+      <span class="temp-chip" style="--c:#DC2626">🔥 Colérico</span>
+      <span class="temp-chip" style="--c:#F59E0B">☀️ Sanguíneo</span>
+      <span class="temp-chip" style="--c:#3B82F6">🌊 Flemático</span>
+      <span class="temp-chip" style="--c:#7C3AED">🌙 Melancólico</span>
+    </div>
+    <button class="btn-primary" onclick="goTo('screen-register')">Comenzar →</button>
+    <p class="landing-note">Gratis · Resultados inmediatos · Sin spam</p>
+    <p class="landing-disclaimer">Esta herramienta es de carácter exclusivamente orientativo e informativo. Los resultados se basan en la teoría clásica de los cuatro temperamentos, un marco de referencia de dominio público con siglos de uso. No constituye un diagnóstico clínico, psicológico ni médico, y no sustituye la evaluación de un profesional certificado. Los perfiles generados son aproximaciones indicativas y pueden no reflejar con exactitud la personalidad de cada individuo. El uso de esta herramienta implica la aceptación de que los resultados son meramente referenciales y que el autor no asume responsabilidad por decisiones tomadas con base en ellos.</p>
+    <a href="admin.html" class="admin-access-link">⚙️ Admin</a>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!--  PANTALLA 2: REGISTRO                          -->
+<!-- ═══════════════════════════════════════════════ -->
+<div id="screen-register" class="screen">
+  <div class="flow-container">
+    <div class="flow-header">
+      <button class="btn-back" onclick="goTo('screen-landing')">← Volver</button>
+      <div class="step-indicator">Paso 1 de 3</div>
+    </div>
+
+    <div class="register-card">
+      <div class="register-icon">👋</div>
+      <h2 class="register-title">Primero, cuéntanos<br>quién eres</h2>
+      <p class="register-desc">
+        Solo necesitamos tu nombre y correo para guardar tu resultado.
+      </p>
+
+      <form class="register-form" onsubmit="registerSubmit(event)">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="input-nombre">Nombre</label>
+            <input
+              id="input-nombre"
+              class="form-input"
+              type="text"
+              placeholder="Tu nombre"
+              autocomplete="given-name"
+              required
+              oninput="validateRegisterForm()"
+            />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="input-apellido">Apellido</label>
+            <input
+              id="input-apellido"
+              class="form-input"
+              type="text"
+              placeholder="Tu apellido"
+              autocomplete="family-name"
+              required
+              oninput="validateRegisterForm()"
+            />
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="input-email">Correo electrónico</label>
+          <input
+            id="input-email"
+            class="form-input"
+            type="email"
+            placeholder="tu@correo.com"
+            autocomplete="email"
+            required
+            oninput="validateRegisterForm()"
+          />
+          <span class="form-hint">Solo para enviarte tu resultado, nunca spam.</span>
+        </div>
+
+        <button class="btn-primary btn-full" type="submit" id="register-btn" disabled>
+          Continuar →
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!--  PANTALLA 3: FOTO (OPCIONAL)                   -->
+<!-- ═══════════════════════════════════════════════ -->
+<div id="screen-photo" class="screen">
+  <div class="flow-container">
+    <div class="flow-header">
+      <button class="btn-back" onclick="goTo('screen-register')">← Volver</button>
+      <div class="step-indicator">Paso 2 de 3</div>
+    </div>
+
+    <div class="photo-card">
+      <div class="photo-icon">📸</div>
+      <h2 class="photo-title">¿Quieres subir una foto?</h2>
+      <p class="photo-desc">
+        Opcional. Si subes una foto, la analizaremos junto con tus respuestas para un resultado más preciso.
+      </p>
+
+      <div id="photo-drop-area" class="photo-drop">
+        <div id="photo-preview-wrap" style="display:none">
+          <img id="photo-preview" src="" alt="Foto" />
+          <button class="photo-remove" onclick="removePhoto(event)">✕</button>
+        </div>
+        <div id="photo-placeholder">
+          <span class="photo-drop-icon">📷</span>
+          <span>Elige cómo agregar tu foto</span>
+          <span class="photo-drop-sub">JPG, PNG · Máx 5MB</span>
+        </div>
+      </div>
+
+      <!-- Inputs: cámara, galería y archivo -->
+      <input type="file" id="photo-input-camera"  accept="image/*" capture="user" style="display:none" onchange="handlePhotoUpload(event)" />
+      <input type="file" id="photo-input-gallery" accept="image/*"                style="display:none" onchange="handlePhotoUpload(event)" />
+      <input type="file" id="photo-input-file"    accept="image/jpeg,image/png,image/gif,image/webp,image/heic,image/avif" style="display:none" onchange="handlePhotoUpload(event)" />
+
+      <div class="photo-source-btns">
+        <button class="btn-photo-source" onclick="document.getElementById('photo-input-camera').click()">
+          <span class="photo-source-icon">📷</span>
+          <span>Tomar foto</span>
+        </button>
+        <button class="btn-photo-source" onclick="document.getElementById('photo-input-gallery').click()">
+          <span class="photo-source-icon">🖼️</span>
+          <span>Fototeca</span>
+        </button>
+        <button class="btn-photo-source" onclick="document.getElementById('photo-input-file').click()">
+          <span class="photo-source-icon">📁</span>
+          <span>Desde archivo</span>
+        </button>
+      </div>
+
+      <div class="photo-actions">
+        <button class="btn-primary" onclick="goToQuiz()">
+          <span id="photo-btn-text">Continuar sin foto →</span>
+        </button>
+        <button class="btn-ghost" onclick="goToQuiz()">Saltar este paso</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!--  PANTALLA 4: CUESTIONARIO                      -->
+<!-- ═══════════════════════════════════════════════ -->
+<div id="screen-quiz" class="screen">
+  <div class="flow-container">
+    <div class="flow-header">
+      <button class="btn-back" id="quiz-back-btn" onclick="quizGoBack()">← Atrás</button>
+      <div class="step-indicator" id="quiz-step-label">Bloque 1 de 5</div>
+    </div>
+
+    <div class="progress-wrap">
+      <div class="progress-bar">
+        <div class="progress-fill" id="progress-fill"></div>
+      </div>
+      <span class="progress-label" id="progress-label">0%</span>
+    </div>
+
+    <div id="quiz-block-header" class="quiz-block-header"></div>
+    <div id="quiz-questions" class="quiz-questions"></div>
+
+    <div class="quiz-nav">
+      <button class="btn-primary" id="quiz-next-btn" onclick="quizNext()" disabled>
+        Siguiente →
+      </button>
+    </div>
+
+    <div class="quiz-motivator" id="quiz-motivator"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!--  PANTALLA 5: PROCESANDO                        -->
+<!-- ═══════════════════════════════════════════════ -->
+<div id="screen-processing" class="screen">
+  <div class="processing-container">
+    <div class="processing-orb"></div>
+    <h2 class="processing-title">Analizando tu perfil...</h2>
+    <p class="processing-sub" id="processing-sub">Procesando tus respuestas</p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!--  PANTALLA 6: RESULTADOS                        -->
+<!-- ═══════════════════════════════════════════════ -->
+<div id="screen-results" class="screen">
+  <div class="results-container">
+
+    <div class="results-hero" id="results-hero">
+      <div class="results-user-greeting" id="results-user-greeting"></div>
+      <div class="results-badge" id="results-badge"></div>
+      <h1 class="results-title" id="results-title"></h1>
+      <p class="results-combo" id="results-combo"></p>
+      <p class="results-description" id="results-description"></p>
+    </div>
+
+    <div class="results-section">
+      <h3 class="section-title">Tu mapa de temperamentos</h3>
+      <div class="scores-grid" id="scores-grid"></div>
+    </div>
+
+    <div class="results-section">
+      <h3 class="section-title">✨ Tus fortalezas</h3>
+      <ul class="traits-list strengths-list" id="strengths-list"></ul>
+    </div>
+
+    <div class="results-section">
+      <h3 class="section-title">🔧 Áreas de mejora</h3>
+      <ul class="traits-list weaknesses-list" id="weaknesses-list"></ul>
+    </div>
+
+    <div class="results-section rec-section">
+      <h3 class="section-title">🚀 Potencia tus fortalezas</h3>
+      <ul class="rec-list" id="rec-strengths-list"></ul>
+    </div>
+
+    <div class="results-section rec-section">
+      <h3 class="section-title">🌱 Trabaja tus áreas de mejora</h3>
+      <ul class="rec-list" id="rec-weaknesses-list"></ul>
+    </div>
+
+    <div class="results-section approach-section">
+      <h3 class="section-title">🤝 Cómo conectar con este perfil</h3>
+      <p class="approach-intro">Si conoces a alguien con este temperamento, aquí te decimos cómo llegar a ellos:</p>
+      <div class="approach-grid" id="approach-grid"></div>
+    </div>
+
+    <!-- Análisis de foto -->
+    <div class="results-section photo-analysis-section" id="photo-analysis-section" style="display:none">
+      <h3 class="section-title">📸 Lo que tu imagen revela</h3>
+      <p class="approach-intro" id="photo-analysis-intro"></p>
+      <div class="photo-analysis-grid" id="photo-analysis-content"></div>
+    </div>
+
+    <!-- Salud -->
+    <div class="results-section health-section">
+      <h3 class="section-title">🏥 Tu salud según tu temperamento</h3>
+      <p class="approach-intro">Tu forma de ser tiene un impacto directo en tu salud. Conocerlo es la mejor forma de prevenirlo.</p>
+      <div class="health-grid">
+        <div class="health-card health-risks">
+          <div class="health-card-title">⚠️ Lo que puede afectar tu salud</div>
+          <ul class="health-list" id="health-risks-list"></ul>
+        </div>
+        <div class="health-card health-cares">
+          <div class="health-card-title">💚 Cómo cuidarte</div>
+          <ul class="health-list" id="health-cares-list"></ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Famosos -->
+    <div class="results-section famosos-section">
+      <h3 class="section-title">🌟 Personas famosas con este temperamento</h3>
+      <div class="famosos-list" id="famosos-list"></div>
+    </div>
+
+    <!-- Estado del guardado en Notion -->
+    <div class="notion-save-status" id="notion-save-status"></div>
+
+    <!-- Rating -->
+    <div class="rating-section" id="rating-section">
+      <h3 class="rating-title">¿Qué tan acertado fue tu perfil?</h3>
+      <p class="rating-sub">Tu opinión nos ayuda a mejorar. Del 1 al 10, ¿cuánto te identificas con estos resultados?</p>
+      <div class="rating-stars" id="rating-stars">
+        <button class="rating-btn" data-v="1"  onclick="selectRating(1)">1</button>
+        <button class="rating-btn" data-v="2"  onclick="selectRating(2)">2</button>
+        <button class="rating-btn" data-v="3"  onclick="selectRating(3)">3</button>
+        <button class="rating-btn" data-v="4"  onclick="selectRating(4)">4</button>
+        <button class="rating-btn" data-v="5"  onclick="selectRating(5)">5</button>
+        <button class="rating-btn" data-v="6"  onclick="selectRating(6)">6</button>
+        <button class="rating-btn" data-v="7"  onclick="selectRating(7)">7</button>
+        <button class="rating-btn" data-v="8"  onclick="selectRating(8)">8</button>
+        <button class="rating-btn" data-v="9"  onclick="selectRating(9)">9</button>
+        <button class="rating-btn" data-v="10" onclick="selectRating(10)">10</button>
+      </div>
+      <div class="rating-labels">
+        <span>Nada acertado</span>
+        <span>¡Me describió perfecto!</span>
+      </div>
+      <button class="btn-primary rating-submit" id="rating-submit" onclick="submitRating()" disabled>
+        Enviar calificación
+      </button>
+      <div class="rating-status" id="rating-status"></div>
+    </div>
+
+    <!-- Comentarios y aportes de expertos -->
+    <div class="comment-section" id="comment-section" style="display:none;margin-top:0">
+      <h3 class="rating-title">¿Quieres dejar un comentario?</h3>
+      <p class="rating-sub">Tu opinión nos ayuda a mejorar y afinar los perfiles. Es opcional y completamente voluntario.</p>
+
+      <textarea
+        class="comment-textarea"
+        id="comment-text"
+        placeholder="Comparte lo que piensas sobre tu resultado, qué resonó contigo o qué mejorarías..."
+        rows="4"
+        maxlength="1000"
+        oninput="updateCommentCount()"
+      ></textarea>
+      <div class="comment-count" id="comment-count">0 / 1000</div>
+
+      <!-- Toggle experto -->
+      <div class="expert-toggle-wrap" id="expert-toggle-wrap">
+        <button class="expert-toggle-btn" id="expert-toggle-btn" onclick="toggleExpert()">
+          <span class="expert-toggle-icon">🎓</span>
+          <span class="expert-toggle-label">Soy profesional o experto en comportamiento humano</span>
+          <span class="expert-toggle-arrow" id="expert-toggle-arrow">›</span>
+        </button>
+        <div class="expert-fields" id="expert-fields" style="display:none">
+          <p class="expert-fields-note">
+            Como experto, tu aporte tiene mayor peso para mejorar nuestra base de conocimiento.
+            Será revisado antes de integrarse a las fuentes del sistema.
+          </p>
+          <div class="expert-form-row">
+            <div class="expert-form-group">
+              <label class="expert-label">Especialidad / Profesión</label>
+              <input type="text" id="expert-especialidad" class="expert-input"
+                placeholder="Ej. Psicólogo clínico, Coach, RH..." />
+            </div>
+            <div class="expert-form-group">
+              <label class="expert-label">Credenciales o institución (opcional)</label>
+              <input type="text" id="expert-credenciales" class="expert-input"
+                placeholder="Ej. USAC, Universidad Galileo..." />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="comment-actions">
+        <button class="btn-primary" id="comment-submit" onclick="submitComment()" disabled>
+          Enviar comentario
+        </button>
+      </div>
+      <div class="comment-status" id="comment-status"></div>
+    </div>
+
+    <div class="results-cta">
+      <button class="btn-primary" onclick="restartQuiz()">Hacer el test de nuevo</button>
+      <button class="btn-ghost" onclick="window.print()">⬇️ Guardar como PDF</button>
+    </div>
+
+  </div>
+</div>
+
+<script src="data.js"></script>
+<script src="scoring.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
