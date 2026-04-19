@@ -187,7 +187,10 @@ def save_to_notion(cfg, payload, pdf_filename=None):
 
 def _attach_pdf_block_to_notion(token, page_id, pdf_filename):
     """Agrega un bloque con link al PDF dentro de la página de Notion."""
-    pdf_url = f"http://localhost:{PORT}/api/pdf/{pdf_filename}"
+    base_url = os.environ.get("APP_URL", "").rstrip("/")
+    if not base_url:
+        base_url = f"http://localhost:{PORT}"
+    pdf_url = f"{base_url}/api/pdf/{pdf_filename}"
     try:
         block_data = json.dumps({
             "children": [
