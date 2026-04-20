@@ -104,7 +104,6 @@ def get_conocimiento_for_biotipo(biotipo):
 
 
 def load_config():
-    # Leer config.json si existe (local), sino usar variables de entorno (Railway/cloud)
     try:
         return json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
     except Exception:
@@ -113,13 +112,12 @@ def load_config():
                 "password": os.environ.get("ADMIN_PASSWORD", "")
             },
             "notion": {
-                "enabled":     os.environ.get("NOTION_ENABLED", "false").lower() == "true",
-                "token":       os.environ.get("NOTION_TOKEN", ""),
-                "database_id": os.environ.get("NOTION_DATABASE_ID", ""),
+                "enabled":              os.environ.get("NOTION_ENABLED", "false").lower() == "true",
+                "token":                os.environ.get("NOTION_TOKEN", ""),
+                "database_id":          os.environ.get("NOTION_DATABASE_ID", ""),
+                "conocimiento_db_id":   os.environ.get("NOTION_CONOCIMIENTO_DB_ID", ""),
             },
-            "email": {
-                "enabled": False
-            }
+            "email": {"enabled": False}
         }
 
 
@@ -224,6 +222,77 @@ def notion_store_json_block(token, page_id, data_dict):
             },
         }]
     })
+
+
+def save_conocimiento_to_notion(notion_cfg, doc_data):
+    """Guarda un documento de conocimiento en la base de datos de Notion."""
+    token  = notion_cfg.get("token", "")
+    db_id  = notion_cfg.get("conocimiento_db_id", "")
+    if not token or not db_id:
+        return False
+    try:
+        result = _notion_req("POST", "/pages", token, {
+            "parent":     {"database_id": db_id},
+            "properties": {
+                "Name": {"title": [{"text": {"content": doc_data.get("titulo", "Sin título")}}]},
+            },
+        })
+        page_id = result.get("id", "")
+        if page_id:
+            notion_store_json_block(token, page_id, doc_data)
+            print(f"  🧠 Conocimiento guardado en Notion: {doc_data.get('titulo')}")
+            return True
+    except Exception as e:
+        print(f"  ⚠️  Error guardando conocimiento en Notion: {e}")
+    return False
+
+
+def restore_conocimiento_from_notion(notion_cfg):
+    """Restaura los documentos de conocimiento desde Notion si la carpeta está vacía."""
+    if list(CONOCIMIENTO_DIR.glob("*.json")):
+        return
+    token = notion_cfg.get("token", "")
+    db_id = notion_cfg.get("conocimiento_db_id", "")
+    if not token or not db_id:
+        return
+    print("  🔄 Restaurando base de conocimiento desde Notion...")
+    restored = 0
+    try:
+        has_more = True
+        cursor   = None
+        while has_more:
+            body = {"page_size": 100}
+            if cursor:
+                body["start_cursor"] = cursor
+            result   = _notion_req("POST", f"/databases/{db_id}/query", token, body)
+            has_more = result.get("has_more", False)
+            cursor   = result.get("next_cursor")
+            for page in result.get("results", []):
+                page_id = page["id"]
+                try:
+                    blocks = _notion_req("GET", f"/blocks/{page_id}/children", token)
+                    for block in blocks.get("results", []):
+                        if block.get("type") != "code":
+                            continue
+                        json_str = "".join(
+                            rt.get("text", {}).get("content", "")
+                            for rt in block.get("code", {}).get("rich_text", [])
+                        )
+                        try:
+                            data     = json.loads(json_str)
+                            filename = data.get("filename") or f"{page_id[:8]}.json"
+                            (CONOCIMIENTO_DIR / filename).write_text(
+                                json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
+                            )
+                            restored += 1
+                        except Exception:
+                            pass
+                        break
+                except Exception:
+                    continue
+        print(f"  ✅ Restaurados {restored} documentos de conocimiento")
+    except Exception as e:
+        print(f"  ⚠️  Error restaurando conocimiento: {e}")
 
 
 def restore_from_notion(cfg):
@@ -1016,6 +1085,7 @@ class BiotipesHandler(http.server.SimpleHTTPRequestHandler):
             ts_slug  = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"{ts_slug}.json"
             data = {
+                "filename":  filename,
                 "titulo":    titulo,
                 "timestamp": datetime.datetime.now().isoformat(),
                 "contenido": contenido,
@@ -1024,6 +1094,11 @@ class BiotipesHandler(http.server.SimpleHTTPRequestHandler):
             (CONOCIMIENTO_DIR / filename).write_text(
                 json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
             )
+            # Guardar también en Notion
+            cfg = load_config()
+            notion_cfg = cfg.get("notion", {})
+            if notion_cfg.get("enabled"):
+                save_conocimiento_to_notion(notion_cfg, data)
             print(f"  🧠 Conocimiento cargado: {filename} — secciones: {list(sections.keys())}")
             self._respond(200, {"ok": True, "filename": filename, "sections": list(sections.keys())})
         except Exception as e:
@@ -1191,9 +1266,11 @@ if __name__ == "__main__":
     print(f"  Ctrl+C para detener\n")
 
     # Restaurar datos desde Notion si el servidor arrancó sin archivos locales
-    _startup_cfg = load_config()
-    if _startup_cfg.get("notion", {}).get("enabled"):
-        restore_from_notion(_startup_cfg.get("notion", {}))
+    _startup_cfg    = load_config()
+    _startup_notion = _startup_cfg.get("notion", {})
+    if _startup_notion.get("enabled"):
+        restore_from_notion(_startup_notion)
+        restore_conocimiento_from_notion(_startup_notion)
 
     httpd = http.server.HTTPServer(("", PORT), BiotipesHandler)
     try:
