@@ -858,6 +858,18 @@ body {
 /* Famosos */
 .famosos-section { background: var(--gray-50); }
 
+.conocimiento-card {
+  background: var(--white);
+  border-left: 4px solid var(--primary);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  padding: 16px 20px;
+  margin-bottom: 12px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--gray-700);
+  box-shadow: var(--shadow-sm);
+}
+
 .famosos-list {
   display: flex;
   gap: 12px;

@@ -79,6 +79,7 @@
     .user-card-name-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
     .btn-delete-card { flex-shrink: 0; background: none; border: none; font-size: 16px; cursor: pointer; opacity: 0.35; padding: 2px 4px; border-radius: 6px; transition: opacity .15s, background .15s; line-height: 1; }
     .btn-delete-card:hover { opacity: 1; background: #FEE2E2; }
+    .user-card-photo { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; flex-shrink: 0; border: 2px solid var(--gray-200); }
 
     /* MODAL */
     .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 100; align-items: center; justify-content: center; padding: 24px; }
@@ -269,6 +270,7 @@
       <button class="admin-tab" onclick="switchTab('perfiles')">📊 Perfiles</button>
       <button class="admin-tab" onclick="switchTab('analisis')">🔍 Analizar persona</button>
       <button class="admin-tab" onclick="switchTab('transcripciones')">📚 Fuentes</button>
+      <button class="admin-tab" onclick="switchTab('conocimiento')">🧠 Base de Conocimiento</button>
     </div>
     <button class="admin-logout" onclick="doLogout()">Salir</button>
   </div>
@@ -440,6 +442,64 @@
     </div>
   </div>
 
+  <!-- ══ TAB: BASE DE CONOCIMIENTO ════════════════════════════ -->
+  <div class="tab-panel" id="tab-conocimiento">
+    <div class="trans-wrap">
+      <h2 class="trans-title">🧠 Base de Conocimiento</h2>
+      <p class="trans-sub">Sube documentos de texto generados en NotebookLM o escritos manualmente. El sistema los parsea por biotipo y los muestra automáticamente en el perfil de cada usuario.</p>
+
+      <div class="trans-card">
+        <div class="trans-card-title">📄 Formato del documento</div>
+        <p style="font-size:13px;color:var(--gray-600);margin-bottom:10px">Estructura tu texto con estas etiquetas para indicar a qué biotipo corresponde cada sección:</p>
+        <pre style="background:var(--gray-50);border-radius:8px;padding:14px;font-size:12px;color:var(--gray-700);overflow-x:auto">[COLERICO]
+Texto sobre el biotipo colérico...
+
+[SANGUINEO]
+Texto sobre el biotipo sanguíneo...
+
+[FLEMATICO]
+Texto sobre el biotipo flemático...
+
+[MELANCOLICO]
+Texto sobre el biotipo melancólico...
+
+[GENERAL]
+Texto que aplica a todos los biotipos...</pre>
+      </div>
+
+      <div class="trans-card">
+        <div class="trans-card-title">➕ Cargar nuevo documento</div>
+        <div class="trans-form">
+          <label>Título del documento</label>
+          <input type="text" id="conoc-titulo" placeholder="Ej. Análisis NotebookLM — Abril 2026" />
+          <label style="margin-top:14px">Contenido (pega tu texto aquí)</label>
+          <textarea id="conoc-contenido" rows="12" placeholder="[COLERICO]&#10;Texto sobre colérico...&#10;&#10;[SANGUINEO]&#10;Texto sobre sanguíneo..."></textarea>
+          <div style="display:flex;align-items:center;gap:14px;margin-top:12px;flex-wrap:wrap">
+            <button class="btn-primary" onclick="uploadConocimiento()">💾 Cargar documento</button>
+            <label style="cursor:pointer;font-size:13px;color:var(--primary);font-weight:600">
+              📁 O subir archivo .txt
+              <input type="file" id="conoc-file" accept=".txt" style="display:none" onchange="loadConocimientoFile(event)" />
+            </label>
+            <span id="conoc-status" style="font-size:13px;color:var(--gray-600)"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="trans-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px">
+          <div class="trans-card-title" style="margin-bottom:0">📋 Documentos cargados</div>
+          <button class="btn-ghost" style="padding:8px 16px;font-size:13px" onclick="loadConocimientoList()">🔄 Actualizar</button>
+        </div>
+        <div id="conoc-list"><div style="font-size:13px;color:var(--gray-400);padding:20px 0;text-align:center">Cargando...</div></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── LIGHTBOX FOTO ───────────────────────────────────────── -->
+<div id="lightbox-overlay" onclick="closeLightbox()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:200;align-items:center;justify-content:center;cursor:zoom-out">
+  <img id="lightbox-img" src="" alt="foto" style="max-width:90vw;max-height:90vh;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.5)" onclick="event.stopPropagation()" />
 </div>
 
 <!-- ── MODAL USUARIO ───────────────────────────────────────── -->
@@ -687,12 +747,13 @@ function doLogout() {
 // TABS
 // ══════════════════════════════════════════════════════════════
 function switchTab(name) {
-  const TAB_ORDER = ["usuarios","perfiles","analisis","transcripciones"];
+  const TAB_ORDER = ["usuarios","perfiles","analisis","transcripciones","conocimiento"];
   document.querySelectorAll(".admin-tab").forEach((t,i) => {
     t.classList.toggle("active", TAB_ORDER[i] === name);
   });
   document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
   document.getElementById(`tab-${name}`).classList.add("active");
+  if (name === "conocimiento") loadConocimientoList();
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -770,7 +831,8 @@ function renderGrid() {
       <div class="user-card-bar" style="background:linear-gradient(90deg,${color},${secColor})"></div>
       <div class="user-card-body">
         <div class="user-card-name-row">
-          <div>
+          ${u.foto_filename ? `<img class="user-card-photo" src="/api/foto/${u.foto_filename}" alt="foto" onclick="event.stopPropagation();openLightbox('/api/foto/${u.foto_filename}')" title="Ver foto" />` : ''}
+          <div style="flex:1;min-width:0">
             <div class="user-card-name">${u.nombre} ${u.apellido}</div>
             <div class="user-card-email">${u.email}</div>
           </div>
@@ -815,6 +877,11 @@ function openModal(archivo) {
     ? `<a class="btn-primary" href="/api/pdf/${u.pdf}" target="_blank">📄 Ver PDF</a>`
     : `<span style="font-size:13px;color:var(--gray-400)">Sin PDF</span>`;
   document.getElementById("modal-body").innerHTML = `
+    ${u.foto_filename ? `<div style="text-align:center;padding:20px 0 0">
+      <img src="/api/foto/${u.foto_filename}" alt="foto" onclick="openLightbox('/api/foto/${u.foto_filename}')"
+        style="width:90px;height:90px;border-radius:50%;object-fit:cover;border:3px solid ${color};cursor:zoom-in;transition:transform .2s"
+        onmouseover="this.style.transform='scale(1.06)'" onmouseout="this.style.transform='scale(1)'" />
+    </div>` : ""}
     <div class="modal-section">
       <div class="modal-section-title">Temperamento</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
@@ -835,6 +902,15 @@ function openModal(archivo) {
 function closeModal(e) {
   if (e && e.target !== document.getElementById("modal-overlay")) return;
   document.getElementById("modal-overlay").classList.remove("open");
+}
+
+function openLightbox(src) {
+  const lb = document.getElementById("lightbox-overlay");
+  document.getElementById("lightbox-img").src = src;
+  lb.style.display = "flex";
+}
+function closeLightbox() {
+  document.getElementById("lightbox-overlay").style.display = "none";
 }
 
 function copyEmail(email) {
@@ -1454,6 +1530,88 @@ async function approveComment(archivo, btn) {
     btn.textContent = "✓ Aprobar y añadir a Fuentes";
     alert("Error: " + e.message);
   }
+}
+
+// ══════════════════════════════════════════════════════════════
+// BASE DE CONOCIMIENTO
+// ══════════════════════════════════════════════════════════════
+const BIOTIPO_LABELS = { c:"🔥 Colérico", s:"☀️ Sanguíneo", f:"🌊 Flemático", m:"🌙 Melancólico", general:"🌐 General" };
+
+function loadConocimientoFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById("conoc-contenido").value = e.target.result;
+    if (!document.getElementById("conoc-titulo").value)
+      document.getElementById("conoc-titulo").value = file.name.replace(".txt","");
+  };
+  reader.readAsText(file);
+  event.target.value = "";
+}
+
+async function uploadConocimiento() {
+  const titulo    = document.getElementById("conoc-titulo").value.trim();
+  const contenido = document.getElementById("conoc-contenido").value.trim();
+  const status    = document.getElementById("conoc-status");
+  if (!titulo || !contenido) { status.textContent = "⚠️ Completa el título y el contenido."; return; }
+  status.textContent = "Guardando...";
+  try {
+    const res  = await fetch("/api/conocimiento", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${adminToken}` },
+      body: JSON.stringify({ titulo, contenido }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      const secs = (data.sections || []).map(s => BIOTIPO_LABELS[s] || s).join(", ");
+      status.textContent = `✅ Cargado. Secciones detectadas: ${secs || "ninguna"}`;
+      document.getElementById("conoc-titulo").value    = "";
+      document.getElementById("conoc-contenido").value = "";
+      loadConocimientoList();
+    } else {
+      status.textContent = "❌ " + data.error;
+    }
+  } catch(e) { status.textContent = "❌ Error: " + e.message; }
+}
+
+async function loadConocimientoList() {
+  const list = document.getElementById("conoc-list");
+  try {
+    const res  = await fetch("/api/conocimiento", { headers:{"Authorization":`Bearer ${adminToken}`} });
+    const data = await res.json();
+    const docs = data.docs || [];
+    if (!docs.length) {
+      list.innerHTML = `<div style="font-size:13px;color:var(--gray-400);padding:20px 0;text-align:center">No hay documentos cargados aún.</div>`;
+      return;
+    }
+    list.innerHTML = docs.map(d => {
+      const secs = (d.secciones || []).map(s => `<span style="background:var(--gray-100);border-radius:20px;padding:2px 10px;font-size:11px;font-weight:600">${BIOTIPO_LABELS[s]||s}</span>`).join(" ");
+      const fecha = d.timestamp ? d.timestamp.slice(0,10) : "";
+      return `<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px 0;border-bottom:1px solid var(--gray-100)">
+        <div>
+          <div style="font-weight:700;font-size:14px;margin-bottom:6px">${d.titulo}</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px">${secs}</div>
+          <div style="font-size:11px;color:var(--gray-400)">📅 ${fecha}</div>
+        </div>
+        <button onclick="deleteConocimiento('${d.filename}','${d.titulo}')" style="flex-shrink:0;background:none;border:none;font-size:16px;cursor:pointer;opacity:.35;padding:4px;border-radius:6px;transition:opacity .15s,background .15s" onmouseover="this.style.opacity=1;this.style.background='#FEE2E2'" onmouseout="this.style.opacity=.35;this.style.background='none'">🗑️</button>
+      </div>`;
+    }).join("");
+  } catch(e) { list.innerHTML = `<div style="color:red;font-size:13px">Error: ${e.message}</div>`; }
+}
+
+async function deleteConocimiento(filename, titulo) {
+  if (!confirm(`¿Eliminar "${titulo}"?\nEsta acción no se puede deshacer.`)) return;
+  try {
+    const res = await fetch("/api/delete-conocimiento", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${adminToken}` },
+      body: JSON.stringify({ filename }),
+    });
+    const data = await res.json();
+    if (data.ok) loadConocimientoList();
+    else alert("Error: " + data.error);
+  } catch(e) { alert("Error: " + e.message); }
 }
 </script>
 </body>

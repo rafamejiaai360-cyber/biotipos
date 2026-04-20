@@ -418,6 +418,26 @@ function renderResults(results) {
   const famosos = [...new Set([...dominantData.famosos, ...secondaryData.famosos.slice(0, 2)])];
   document.getElementById("famosos-list").innerHTML =
     famosos.map(f => `<div class="famoso-chip">⭐ ${f}</div>`).join("");
+
+  // Conocimiento especializado
+  loadKnowledge(results.dominant);
+}
+
+async function loadKnowledge(biotipo) {
+  const section = document.getElementById("conocimiento-section");
+  const list    = document.getElementById("conocimiento-list");
+  try {
+    const res     = await fetch(`/api/conocimiento/${biotipo}`);
+    const data    = await res.json();
+    const snippets = data.snippets || [];
+    if (!snippets.length) { section.style.display = "none"; return; }
+    list.innerHTML = snippets.map(s =>
+      `<div class="conocimiento-card">${s.replace(/\n/g, "<br>")}</div>`
+    ).join("");
+    section.style.display = "block";
+  } catch(e) {
+    section.style.display = "none";
+  }
 }
 
 // ============================================================
@@ -448,6 +468,8 @@ async function saveToNotion(results) {
     perfil:        results.profile.title + " — " + results.profile.subtitle,
     scores:        results.scores,
     conFoto:       !!state.photoBase64,
+    photoBase64:   state.photoBase64  || null,
+    photoMimeType: state.photoMimeType || null,
     profile:       results.profile,
     health_risks:  healthRisks,
     health_cares:  healthCares,

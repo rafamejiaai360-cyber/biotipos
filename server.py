@@ -42,13 +42,68 @@ PORT = int(os.environ.get("PORT", 3000))
 BASE_DIR    = Path(__file__).parent
 RESULTS_DIR = BASE_DIR / "resultados"
 PDFS_DIR    = BASE_DIR / "pdfs"
+FOTOS_DIR      = BASE_DIR / "fotos"
+CONOCIMIENTO_DIR = BASE_DIR / "conocimiento"
 TRANS_DIR   = BASE_DIR / "transcripciones"
 COMMENTS_DIR = BASE_DIR / "comentarios"
 PERFILES_DIR = BASE_DIR / "perfiles_analizados"
 CONFIG_FILE = BASE_DIR / "config.json"
 
+for _d in (RESULTS_DIR, PDFS_DIR, FOTOS_DIR, CONOCIMIENTO_DIR, TRANS_DIR, COMMENTS_DIR, PERFILES_DIR):
+    _d.mkdir(exist_ok=True)
+
 for d in [RESULTS_DIR, PDFS_DIR, TRANS_DIR, COMMENTS_DIR, PERFILES_DIR]:
     d.mkdir(exist_ok=True)
+
+
+def parse_conocimiento_text(text):
+    """Parsea un .txt con secciones [BIOTIPO] y retorna dict {biotipo: [snippets]}."""
+    import re
+    tag_map = {
+        "COLERICO": "c", "COLERICO": "c", "C": "c",
+        "SANGUINEO": "s", "S": "s",
+        "FLEMATICO": "f", "FLEMATICO": "f", "F": "f",
+        "MELANCOLICO": "m", "M": "m",
+        "GENERAL": "general", "G": "general",
+    }
+    sections = {}
+    current_key = None
+    current_lines = []
+
+    def _flush():
+        if current_key is None:
+            return
+        content = "\n".join(current_lines).strip()
+        if content:
+            sections.setdefault(current_key, []).append(content)
+
+    for line in text.splitlines():
+        m = re.match(r"^\[([A-ZÁÉÍÓÚÜÑ]+)\]\s*$", line.strip(), re.IGNORECASE)
+        if m:
+            _flush()
+            tag = m.group(1).upper()
+            tag = (tag.replace("Á","A").replace("É","E").replace("Í","I")
+                      .replace("Ó","O").replace("Ú","U").replace("Ü","U").replace("Ñ","N"))
+            current_key = tag_map.get(tag)
+            current_lines = []
+        elif current_key is not None:
+            current_lines.append(line)
+    _flush()
+    return sections
+
+
+def get_conocimiento_for_biotipo(biotipo):
+    """Devuelve lista de snippets relevantes para el biotipo dado."""
+    snippets = []
+    for f in sorted(CONOCIMIENTO_DIR.glob("*.json")):
+        try:
+            data = json.loads(f.read_text(encoding="utf-8"))
+            secs = data.get("sections", {})
+            snippets.extend(secs.get(biotipo, []))
+            snippets.extend(secs.get("general", []))
+        except Exception:
+            pass
+    return snippets
 
 
 def load_config():
@@ -319,6 +374,13 @@ class BiotipesHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_users()
         elif self.path.startswith("/api/pdf/"):
             self._handle_serve_pdf()
+        elif self.path.startswith("/api/foto/"):
+            self._handle_serve_foto()
+        elif self.path == "/api/conocimiento":
+            self._require_admin()
+            self._handle_list_conocimiento()
+        elif self.path.startswith("/api/conocimiento/"):
+            self._handle_conocimiento_biotipo()
         elif self.path == "/api/transcriptions":
             self._require_admin()
             self._handle_list_transcriptions()
@@ -353,6 +415,12 @@ class BiotipesHandler(http.server.SimpleHTTPRequestHandler):
         elif self.path == "/api/delete-user":
             self._require_admin()
             self._handle_delete_user()
+        elif self.path == "/api/conocimiento":
+            self._require_admin()
+            self._handle_upload_conocimiento()
+        elif self.path == "/api/delete-conocimiento":
+            self._require_admin()
+            self._handle_delete_conocimiento()
         else:
             self.send_error(404, "Endpoint no encontrado")
 
@@ -379,6 +447,18 @@ class BiotipesHandler(http.server.SimpleHTTPRequestHandler):
             ts_slug    = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             base_name  = f"{ts_slug}_{email_slug}"
             json_file  = RESULTS_DIR / f"{base_name}.json"
+
+            # Guardar foto si viene en el payload
+            foto_filename = None
+            photo_b64  = payload.pop("photoBase64",  None)
+            photo_mime = payload.pop("photoMimeType", None) or "image/jpeg"
+            if photo_b64:
+                import base64
+                ext = photo_mime.split("/")[-1].split(";")[0] or "jpg"
+                foto_filename = f"{base_name}.{ext}"
+                (FOTOS_DIR / foto_filename).write_bytes(base64.b64decode(photo_b64))
+                payload["foto_filename"] = foto_filename
+                print(f"  🖼️  Foto guardada: {foto_filename}")
 
             # Generar PDF
             pdf_filename = None
@@ -718,8 +798,9 @@ class BiotipesHandler(http.server.SimpleHTTPRequestHandler):
                         "dominant_name":  TYPE_NAMES.get(dom, dom),
                         "secondary_name": TYPE_NAMES.get(sec, sec),
                         "perfil":     data.get("perfil", ""),
-                        "con_foto":   data.get("conFoto", False),
-                        "pdf":        data.get("pdf_filename", ""),
+                        "con_foto":      data.get("conFoto", False),
+                        "foto_filename": data.get("foto_filename", ""),
+                        "pdf":           data.get("pdf_filename", ""),
                         "email_enviado": data.get("email_enviado", False),
                         "profile":    data.get("profile", {}),
                         "scores":     data.get("scores", {}),
@@ -746,6 +827,89 @@ class BiotipesHandler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Content-Length",      str(len(data)))
         self.end_headers()
         self.wfile.write(data)
+
+    # ─── SERVE FOTO ──────────────────────────────────────────
+    def _handle_serve_foto(self):
+        filename = self.path.replace("/api/foto/", "").strip("/")
+        foto_path = FOTOS_DIR / filename
+        if not foto_path.exists():
+            self._respond(404, {"ok": False, "error": "Foto no encontrada"})
+            return
+        ext = filename.rsplit(".", 1)[-1].lower()
+        mime = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
+                "gif": "image/gif", "webp": "image/webp", "heic": "image/heic",
+                "avif": "image/avif"}.get(ext, "image/jpeg")
+        data = foto_path.read_bytes()
+        self.send_response(200)
+        self._cors()
+        self.send_header("Content-Type",   mime)
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    # ─── BASE DE CONOCIMIENTO ────────────────────────────────
+    def _handle_upload_conocimiento(self):
+        try:
+            length  = int(self.headers.get("Content-Length", 0))
+            payload = json.loads(self.rfile.read(length))
+            titulo   = payload.get("titulo", "").strip()
+            contenido = payload.get("contenido", "").strip()
+            if not titulo or not contenido:
+                self._respond(400, {"ok": False, "error": "Faltan campos"})
+                return
+            sections = parse_conocimiento_text(contenido)
+            ts_slug  = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"{ts_slug}.json"
+            data = {
+                "titulo":    titulo,
+                "timestamp": datetime.datetime.now().isoformat(),
+                "contenido": contenido,
+                "sections":  sections,
+            }
+            (CONOCIMIENTO_DIR / filename).write_text(
+                json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+            print(f"  🧠 Conocimiento cargado: {filename} — secciones: {list(sections.keys())}")
+            self._respond(200, {"ok": True, "filename": filename, "sections": list(sections.keys())})
+        except Exception as e:
+            self._respond(500, {"ok": False, "error": str(e)})
+
+    def _handle_list_conocimiento(self):
+        try:
+            docs = []
+            for f in sorted(CONOCIMIENTO_DIR.glob("*.json"), reverse=True):
+                try:
+                    data = json.loads(f.read_text(encoding="utf-8"))
+                    docs.append({
+                        "filename":  f.name,
+                        "titulo":    data.get("titulo", ""),
+                        "timestamp": data.get("timestamp", ""),
+                        "secciones": list(data.get("sections", {}).keys()),
+                    })
+                except Exception:
+                    pass
+            self._respond(200, {"ok": True, "docs": docs})
+        except Exception as e:
+            self._respond(500, {"ok": False, "error": str(e)})
+
+    def _handle_conocimiento_biotipo(self):
+        biotipo = self.path.replace("/api/conocimiento/", "").strip("/")
+        snippets = get_conocimiento_for_biotipo(biotipo)
+        self._respond(200, {"ok": True, "biotipo": biotipo, "snippets": snippets})
+
+    def _handle_delete_conocimiento(self):
+        try:
+            length   = int(self.headers.get("Content-Length", 0))
+            payload  = json.loads(self.rfile.read(length))
+            filename = payload.get("filename", "")
+            path     = CONOCIMIENTO_DIR / filename
+            if not path.exists() or not filename.endswith(".json"):
+                self._respond(404, {"ok": False, "error": "Documento no encontrado"})
+                return
+            path.unlink()
+            self._respond(200, {"ok": True})
+        except Exception as e:
+            self._respond(500, {"ok": False, "error": str(e)})
 
     # ─── TRANSCRIPCIONES ─────────────────────────────────────
     def _handle_save_transcription(self):
