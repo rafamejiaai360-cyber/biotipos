@@ -158,7 +158,7 @@ Adjunto encontrarás tu perfil personalizado en PDF con todas tus fortalezas,
 
 TYPE_NAMES = {"c": "Colérico", "s": "Sanguíneo", "f": "Flemático", "m": "Melancólico"}
 
-NOTION_VERSION = "2022-06-28"
+NOTION_VERSION = "2026-03-11"
 NOTION_BASE    = "https://api.notion.com/v1"
 
 
@@ -174,39 +174,50 @@ def _notion_req(method, path, token, body=None, timeout=15):
 
 
 def notion_upload_file(token, file_bytes, filename, content_type):
-    """Sube un archivo a Notion Files API. Devuelve (upload_id, url) o (None, None)."""
+    """Sube un archivo a Notion Files API. Devuelve upload_id o None."""
     try:
-        result = _notion_req("POST", "/file_uploads", token,
-                             {"filename": filename, "content_type": content_type})
-        upload_id  = result.get("id")
-        upload_url = result.get("upload_url")
-        if not upload_id or not upload_url:
-            return None, None
+        # Paso 1: crear el objeto de upload
+        result    = _notion_req("POST", "/file_uploads", token,
+                                {"mode": "single_part", "filename": filename,
+                                 "content_type": content_type})
+        upload_id = result.get("id")
+        if not upload_id:
+            print(f"  ⚠️  Notion file upload: no se obtuvo ID — {result}")
+            return None
 
-        boundary = "BiotipoBoundary9a3f1c"
-        parts = [
-            f"--{boundary}".encode(),
-            f'Content-Disposition: form-data; name="file"; filename="{filename}"'.encode(),
-            f"Content-Type: {content_type}".encode(),
-            b"",
-            file_bytes,
-            f"--{boundary}--".encode(),
-        ]
-        multipart = b"\r\n".join(parts)
-        upload_req = urllib.request.Request(
-            upload_url, data=multipart,
+        # Paso 2: enviar el archivo vía multipart/form-data
+        boundary  = f"BiotipoBnd{int(datetime.datetime.now().timestamp())}"
+        body = (
+            f"--{boundary}\r\n"
+            f'Content-Disposition: form-data; name="file"; filename="{filename}"\r\n'
+            f"Content-Type: {content_type}\r\n\r\n"
+        ).encode("utf-8") + file_bytes + f"\r\n--{boundary}--\r\n".encode("utf-8")
+
+        send_req = urllib.request.Request(
+            f"{NOTION_BASE}/file_uploads/{upload_id}/send",
+            data=body,
             headers={
-                "Authorization": f"Bearer {token}",
-                "Content-Type":  f"multipart/form-data; boundary={boundary}",
+                "Authorization":  f"Bearer {token}",
+                "Content-Type":   f"multipart/form-data; boundary={boundary}",
+                "Notion-Version": NOTION_VERSION,
             },
-            method="PUT",
+            method="POST",
         )
-        with urllib.request.urlopen(upload_req, timeout=60) as resp:
-            up_result = json.loads(resp.read())
-        return upload_id, up_result.get("url", "")
+        with urllib.request.urlopen(send_req, timeout=60) as resp:
+            send_result = json.loads(resp.read())
+
+        if send_result.get("status") != "uploaded":
+            print(f"  ⚠️  Notion file upload status: {send_result.get('status')}")
+            return None
+
+        print(f"  ✅ Archivo subido a Notion: {filename}")
+        return upload_id
+    except urllib.error.HTTPError as e:
+        print(f"  ⚠️  Notion file upload HTTP {e.code}: {e.read().decode()}")
+        return None
     except Exception as e:
         print(f"  ⚠️  Notion file upload: {e}")
-        return None, None
+        return None
 
 
 def notion_store_json_block(token, page_id, data_dict):
@@ -401,44 +412,29 @@ def save_to_notion(cfg, payload, pdf_filename=None, photo_bytes=None,
         # ── Subir foto como adjunto en columna "Foto" ────────
         if photo_bytes and photo_mime:
             foto_name = payload.get("foto_filename", "foto.jpg")
-            fid, furl = notion_upload_file(token, photo_bytes, foto_name, photo_mime)
+            fid = notion_upload_file(token, photo_bytes, foto_name, photo_mime)
             if fid:
-                payload["notion_foto_url"] = furl
                 _notion_req("PATCH", f"/pages/{page_id}", token, {
                     "properties": {
-                        "Foto": {
-                            "files": [{"type": "file_upload", "file_upload": {"id": fid}}]
-                        }
+                        "Foto": {"files": [
+                            {"type": "file_upload", "file_upload": {"id": fid}, "name": foto_name}
+                        ]}
                     }
                 })
                 print(f"  📸 Foto adjunta en Notion")
 
         # ── Subir PDF como adjunto en columna "PDF" ──────────
         if pdf_bytes and pdf_filename:
-            pid, purl = notion_upload_file(token, pdf_bytes, pdf_filename, "application/pdf")
+            pid = notion_upload_file(token, pdf_bytes, pdf_filename, "application/pdf")
             if pid:
-                payload["notion_pdf_url"] = purl
                 _notion_req("PATCH", f"/pages/{page_id}", token, {
                     "properties": {
-                        "PDF": {
-                            "files": [{"type": "file_upload", "file_upload": {"id": pid}}]
-                        }
+                        "PDF": {"files": [
+                            {"type": "file_upload", "file_upload": {"id": pid}, "name": pdf_filename}
+                        ]}
                     }
                 })
                 print(f"  📄 PDF adjunto en Notion")
-            else:
-                # Fallback: link externo al PDF
-                base_url = os.environ.get("APP_URL", f"http://localhost:{PORT}").rstrip("/")
-                pdf_url  = f"{base_url}/api/pdf/{pdf_filename}"
-                extra_blocks.append({"object": "block", "type": "divider", "divider": {}})
-                extra_blocks.append({
-                    "object": "block", "type": "paragraph",
-                    "paragraph": {"rich_text": [{
-                        "type": "text",
-                        "text": {"content": f"📄 {pdf_filename}", "link": {"url": pdf_url}},
-                        "annotations": {"bold": True, "color": "purple"},
-                    }]},
-                })
 
         if extra_blocks:
             _notion_req("PATCH", f"/blocks/{page_id}/children", token, {"children": extra_blocks})
@@ -472,7 +468,7 @@ def update_notion_rating(cfg, page_id, puntuacion):
             headers={
                 "Authorization":  f"Bearer {cfg['token']}",
                 "Content-Type":   "application/json",
-                "Notion-Version": "2022-06-28",
+                "Notion-Version": NOTION_VERSION,
             },
             method="PATCH",
         )
