@@ -412,29 +412,43 @@ def save_to_notion(cfg, payload, pdf_filename=None, photo_bytes=None,
         # ── Subir foto como adjunto en columna "Foto" ────────
         if photo_bytes and photo_mime:
             foto_name = payload.get("foto_filename", "foto.jpg")
+            print(f"  🔄 Iniciando upload foto: {foto_name} ({len(photo_bytes)} bytes, {photo_mime})")
             fid = notion_upload_file(token, photo_bytes, foto_name, photo_mime)
+            print(f"  🔑 foto upload_id: {fid}")
             if fid:
-                _notion_req("PATCH", f"/pages/{page_id}", token, {
-                    "properties": {
-                        "Foto": {"files": [
-                            {"type": "file_upload", "file_upload": {"id": fid}, "name": foto_name}
-                        ]}
-                    }
-                })
-                print(f"  📸 Foto adjunta en Notion")
+                try:
+                    _notion_req("PATCH", f"/pages/{page_id}", token, {
+                        "properties": {
+                            "Foto": {"files": [
+                                {"type": "file_upload", "file_upload": {"id": fid}, "name": foto_name}
+                            ]}
+                        }
+                    })
+                    print(f"  📸 Foto adjunta en Notion")
+                except urllib.error.HTTPError as e:
+                    print(f"  ⚠️  PATCH Foto HTTP {e.code}: {e.read().decode()}")
+                except Exception as e:
+                    print(f"  ⚠️  PATCH Foto: {e}")
 
         # ── Subir PDF como adjunto en columna "PDF" ──────────
         if pdf_bytes and pdf_filename:
+            print(f"  🔄 Iniciando upload PDF: {pdf_filename} ({len(pdf_bytes)} bytes)")
             pid = notion_upload_file(token, pdf_bytes, pdf_filename, "application/pdf")
+            print(f"  🔑 PDF upload_id: {pid}")
             if pid:
-                _notion_req("PATCH", f"/pages/{page_id}", token, {
-                    "properties": {
-                        "PDF": {"files": [
-                            {"type": "file_upload", "file_upload": {"id": pid}, "name": pdf_filename}
-                        ]}
-                    }
-                })
-                print(f"  📄 PDF adjunto en Notion")
+                try:
+                    _notion_req("PATCH", f"/pages/{page_id}", token, {
+                        "properties": {
+                            "PDF": {"files": [
+                                {"type": "file_upload", "file_upload": {"id": pid}, "name": pdf_filename}
+                            ]}
+                        }
+                    })
+                    print(f"  📄 PDF adjunto en Notion")
+                except urllib.error.HTTPError as e:
+                    print(f"  ⚠️  PATCH PDF HTTP {e.code}: {e.read().decode()}")
+                except Exception as e:
+                    print(f"  ⚠️  PATCH PDF: {e}")
 
         if extra_blocks:
             _notion_req("PATCH", f"/blocks/{page_id}/children", token, {"children": extra_blocks})
@@ -556,6 +570,9 @@ class BiotipesHandler(http.server.SimpleHTTPRequestHandler):
         elif self.path == "/api/perfiles":
             self._require_admin()
             self._handle_list_perfiles()
+        elif self.path == "/api/test-notion":
+            self._require_admin()
+            self._handle_test_notion()
         else:
             super().do_GET()
 
@@ -1136,6 +1153,73 @@ class BiotipesHandler(http.server.SimpleHTTPRequestHandler):
             self._respond(200, {"ok": True})
         except Exception as e:
             self._respond(500, {"ok": False, "error": str(e)})
+
+    # ─── DIAGNÓSTICO NOTION ──────────────────────────────────
+    def _handle_test_notion(self):
+        """GET /api/test-notion — prueba la integración con Notion Files API."""
+        cfg = load_config()
+        notion_cfg = cfg.get("notion", {})
+        results = {}
+
+        if not notion_cfg.get("enabled") or not notion_cfg.get("token"):
+            self._respond(200, {"ok": False, "error": "Notion no configurado"})
+            return
+
+        token = notion_cfg["token"]
+
+        # Test 1: Query database
+        try:
+            r = _notion_req("POST", f"/databases/{notion_cfg['database_id']}/query", token, {"page_size": 1})
+            results["database_query"] = "OK"
+        except Exception as e:
+            results["database_query"] = str(e)
+
+        # Test 2: Create file upload object (1x1 pixel PNG)
+        import base64
+        tiny_png = base64.b64decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+        )
+        try:
+            r = _notion_req("POST", "/file_uploads", token, {
+                "mode": "single_part",
+                "filename": "test.png",
+                "content_type": "image/png",
+            })
+            upload_id = r.get("id")
+            results["create_upload"] = f"OK — id={upload_id}"
+
+            # Test 3: Send file
+            if upload_id:
+                boundary = "BiotipoDiag"
+                body = (
+                    f"--{boundary}\r\n"
+                    f'Content-Disposition: form-data; name="file"; filename="test.png"\r\n'
+                    f"Content-Type: image/png\r\n\r\n"
+                ).encode("utf-8") + tiny_png + f"\r\n--{boundary}--\r\n".encode("utf-8")
+                send_req = urllib.request.Request(
+                    f"{NOTION_BASE}/file_uploads/{upload_id}/send",
+                    data=body,
+                    headers={
+                        "Authorization": f"Bearer {token}",
+                        "Content-Type": f"multipart/form-data; boundary={boundary}",
+                        "Notion-Version": NOTION_VERSION,
+                    },
+                    method="POST",
+                )
+                try:
+                    with urllib.request.urlopen(send_req, timeout=30) as resp:
+                        sr = json.loads(resp.read())
+                    results["send_file"] = f"OK — status={sr.get('status')}"
+                except urllib.error.HTTPError as e:
+                    results["send_file"] = f"HTTP {e.code}: {e.read().decode()}"
+                except Exception as e:
+                    results["send_file"] = str(e)
+        except urllib.error.HTTPError as e:
+            results["create_upload"] = f"HTTP {e.code}: {e.read().decode()}"
+        except Exception as e:
+            results["create_upload"] = str(e)
+
+        self._respond(200, {"ok": True, "tests": results})
 
     # ─── TRANSCRIPCIONES ─────────────────────────────────────
     def _handle_save_transcription(self):
