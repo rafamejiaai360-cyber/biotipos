@@ -52,9 +52,6 @@ CONFIG_FILE = BASE_DIR / "config.json"
 for _d in (RESULTS_DIR, PDFS_DIR, FOTOS_DIR, CONOCIMIENTO_DIR, TRANS_DIR, COMMENTS_DIR, PERFILES_DIR):
     _d.mkdir(exist_ok=True)
 
-for d in [RESULTS_DIR, PDFS_DIR, TRANS_DIR, COMMENTS_DIR, PERFILES_DIR]:
-    d.mkdir(exist_ok=True)
-
 
 def parse_conocimiento_text(text):
     """Parsea un .txt con secciones [BIOTIPO] y retorna dict {biotipo: [snippets]}."""
@@ -163,73 +160,228 @@ Adjunto encontrarás tu perfil personalizado en PDF con todas tus fortalezas,
 
 TYPE_NAMES = {"c": "Colérico", "s": "Sanguíneo", "f": "Flemático", "m": "Melancólico"}
 
+NOTION_VERSION = "2022-06-28"
+NOTION_BASE    = "https://api.notion.com/v1"
 
-def save_to_notion(cfg, payload, pdf_filename=None):
-    """Crea una página en la base de datos de Notion. Devuelve (ok, page_id, msg)."""
+
+def _notion_req(method, path, token, body=None, timeout=15):
+    url  = f"{NOTION_BASE}{path}"
+    data = json.dumps(body).encode("utf-8") if body is not None else None
+    headers = {"Authorization": f"Bearer {token}", "Notion-Version": NOTION_VERSION}
+    if data is not None:
+        headers["Content-Type"] = "application/json"
+    req = urllib.request.Request(url, data=data, headers=headers, method=method)
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return json.loads(resp.read())
+
+
+def notion_upload_file(token, file_bytes, filename, content_type):
+    """Sube un archivo a Notion Files API. Devuelve (upload_id, url) o (None, None)."""
+    try:
+        result = _notion_req("POST", "/file_uploads", token,
+                             {"filename": filename, "content_type": content_type})
+        upload_id  = result.get("id")
+        upload_url = result.get("upload_url")
+        if not upload_id or not upload_url:
+            return None, None
+
+        boundary = "BiotipoBoundary9a3f1c"
+        parts = [
+            f"--{boundary}".encode(),
+            f'Content-Disposition: form-data; name="file"; filename="{filename}"'.encode(),
+            f"Content-Type: {content_type}".encode(),
+            b"",
+            file_bytes,
+            f"--{boundary}--".encode(),
+        ]
+        multipart = b"\r\n".join(parts)
+        upload_req = urllib.request.Request(
+            upload_url, data=multipart,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type":  f"multipart/form-data; boundary={boundary}",
+            },
+            method="PUT",
+        )
+        with urllib.request.urlopen(upload_req, timeout=60) as resp:
+            up_result = json.loads(resp.read())
+        return upload_id, up_result.get("url", "")
+    except Exception as e:
+        print(f"  ⚠️  Notion file upload: {e}")
+        return None, None
+
+
+def notion_store_json_block(token, page_id, data_dict):
+    """Guarda el JSON completo como code block en la página de Notion."""
+    json_str = json.dumps(data_dict, ensure_ascii=False)
+    chunks   = [json_str[i:i+2000] for i in range(0, len(json_str), 2000)]
+    _notion_req("PATCH", f"/blocks/{page_id}/children", token, {
+        "children": [{
+            "object": "block", "type": "code",
+            "code": {
+                "rich_text": [{"type": "text", "text": {"content": c}} for c in chunks],
+                "language": "json",
+            },
+        }]
+    })
+
+
+def restore_from_notion(cfg):
+    """Si resultados/ está vacío, descarga todos los registros desde Notion."""
+    if list(RESULTS_DIR.glob("*.json")):
+        return
+    token       = cfg.get("token", "")
+    database_id = cfg.get("database_id", "")
+    if not token or not database_id:
+        return
+
+    print("  🔄 Restaurando datos desde Notion...")
+    restored = 0
+    has_more = True
+    cursor   = None
+
+    try:
+        while has_more:
+            body = {"page_size": 100}
+            if cursor:
+                body["start_cursor"] = cursor
+            result   = _notion_req("POST", f"/databases/{database_id}/query", token, body)
+            has_more = result.get("has_more", False)
+            cursor   = result.get("next_cursor")
+
+            for page in result.get("results", []):
+                page_id = page["id"]
+                try:
+                    blocks = _notion_req("GET", f"/blocks/{page_id}/children", token)
+                    for block in blocks.get("results", []):
+                        if block.get("type") != "code":
+                            continue
+                        json_str = "".join(
+                            rt.get("text", {}).get("content", "")
+                            for rt in block.get("code", {}).get("rich_text", [])
+                        )
+                        try:
+                            data = json.loads(json_str)
+                        except Exception:
+                            continue
+                        archivo = data.get("archivo", "")
+                        if not archivo:
+                            ts   = data.get("timestamp", datetime.datetime.now().isoformat())
+                            slug = data.get("email", "usuario").split("@")[0].replace(".", "_")
+                            ts_s = ts[:19].replace("-","").replace(":","").replace("T","_")
+                            archivo = f"{ts_s}_{slug}.json"
+                        (RESULTS_DIR / archivo).write_text(
+                            json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
+                        )
+                        # Restaurar foto si tiene URL de Notion
+                        foto_url  = data.get("notion_foto_url", "")
+                        foto_name = data.get("foto_filename", "")
+                        if foto_url and foto_name and not (FOTOS_DIR / foto_name).exists():
+                            try:
+                                with urllib.request.urlopen(foto_url, timeout=15) as r:
+                                    (FOTOS_DIR / foto_name).write_bytes(r.read())
+                            except Exception:
+                                pass
+                        restored += 1
+                        break
+                except Exception:
+                    continue
+
+        print(f"  ✅ Restaurados {restored} registros desde Notion")
+    except Exception as e:
+        print(f"  ⚠️  Error restaurando desde Notion: {e}")
+
+
+def save_to_notion(cfg, payload, pdf_filename=None, photo_bytes=None,
+                   photo_mime=None, pdf_bytes=None):
+    """Crea página en Notion, sube foto y PDF, guarda JSON completo como backup."""
     try:
         token       = cfg.get("token", "")
         database_id = cfg.get("database_id", "")
         if not token or not database_id:
             return False, None, "Token o database_id no configurados"
 
-        dom = payload.get("dominant", "")
-        sec = payload.get("secondary", "")
-        dom_name = TYPE_NAMES.get(dom, dom)
-        sec_name = TYPE_NAMES.get(sec, sec)
+        dom      = payload.get("dominant", "")
+        sec      = payload.get("secondary", "")
         scores   = payload.get("scores", {})
         nombre   = payload.get("nombre", "")
         apellido = payload.get("apellido", "")
 
         properties = {
-            "Nombre": {
-                "title": [{"text": {"content": nombre}}]
-            },
-            "Apellido": {
-                "rich_text": [{"text": {"content": apellido}}]
-            },
-            "Email": {
-                "email": payload.get("email", "")
-            },
-            "Temperamento Dominante": {
-                "select": {"name": dom_name}
-            },
-            "Temperamento Secundario": {
-                "select": {"name": sec_name}
-            },
-            "Perfil": {
-                "rich_text": [{"text": {"content": payload.get("perfil", "")}}]
-            },
-            "Con Foto": {
-                "select": {"name": "Sí" if payload.get("conFoto") else "No"}
-            },
+            "Nombre":                 {"title":     [{"text": {"content": nombre}}]},
+            "Apellido":               {"rich_text": [{"text": {"content": apellido}}]},
+            "Email":                  {"email":     payload.get("email", "")},
+            "Temperamento Dominante": {"select":    {"name": TYPE_NAMES.get(dom, dom)}},
+            "Temperamento Secundario":{"select":    {"name": TYPE_NAMES.get(sec, sec)}},
+            "Perfil":                 {"rich_text": [{"text": {"content": payload.get("perfil", "")[:2000]}}]},
+            "Con Foto":               {"select":    {"name": "Sí" if payload.get("conFoto") else "No"}},
             "Puntaje Colérico":    {"number": scores.get("c", 0)},
             "Puntaje Sanguíneo":   {"number": scores.get("s", 0)},
             "Puntaje Flemático":   {"number": scores.get("f", 0)},
             "Puntaje Melancólico": {"number": scores.get("m", 0)},
         }
 
-        body = json.dumps({
-            "parent":     {"database_id": database_id},
-            "properties": properties,
-        }).encode("utf-8")
+        result  = _notion_req("POST", "/pages", token,
+                              {"parent": {"database_id": database_id}, "properties": properties})
+        page_id = result.get("id", "")
+        if not page_id:
+            return False, None, "No se obtuvo page_id"
 
-        req = urllib.request.Request(
-            "https://api.notion.com/v1/pages",
-            data=body,
-            headers={
-                "Authorization":  f"Bearer {token}",
-                "Content-Type":   "application/json",
-                "Notion-Version": "2022-06-28",
-            },
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            result  = json.loads(resp.read())
-            page_id = result.get("id", "")
+        extra_blocks = []
 
-        # Agregar el PDF como bloque de archivo dentro de la página
-        if pdf_filename and page_id:
-            _attach_pdf_block_to_notion(token, page_id, pdf_filename)
+        # ── Subir foto a Notion ──────────────────────────────
+        if photo_bytes and photo_mime:
+            foto_name = payload.get("foto_filename", "foto.jpg")
+            fid, furl = notion_upload_file(token, photo_bytes, foto_name, photo_mime)
+            if fid:
+                payload["notion_foto_url"] = furl
+                extra_blocks.append({
+                    "object": "block", "type": "heading_3",
+                    "heading_3": {"rich_text": [{"type": "text", "text": {"content": "📸 Foto del usuario"}}]},
+                })
+                extra_blocks.append({
+                    "object": "block", "type": "image",
+                    "image": {"type": "file_upload", "file_upload": {"id": fid}},
+                })
+                print(f"  📸 Foto subida a Notion")
+
+        # ── Subir PDF a Notion ───────────────────────────────
+        if pdf_bytes and pdf_filename:
+            pid, purl = notion_upload_file(token, pdf_bytes, pdf_filename, "application/pdf")
+            if pid:
+                payload["notion_pdf_url"] = purl
+                extra_blocks.append({"object": "block", "type": "divider", "divider": {}})
+                extra_blocks.append({
+                    "object": "block", "type": "heading_3",
+                    "heading_3": {"rich_text": [{"type": "text", "text": {"content": "📄 Reporte PDF"}}]},
+                })
+                extra_blocks.append({
+                    "object": "block", "type": "file",
+                    "file": {"type": "file_upload", "file_upload": {"id": pid}},
+                })
+                print(f"  📄 PDF subido a Notion")
+            else:
+                # Fallback: link externo al PDF
+                base_url = os.environ.get("APP_URL", f"http://localhost:{PORT}").rstrip("/")
+                pdf_url  = f"{base_url}/api/pdf/{pdf_filename}"
+                extra_blocks.append({"object": "block", "type": "divider", "divider": {}})
+                extra_blocks.append({
+                    "object": "block", "type": "paragraph",
+                    "paragraph": {"rich_text": [{
+                        "type": "text",
+                        "text": {"content": f"📄 {pdf_filename}", "link": {"url": pdf_url}},
+                        "annotations": {"bold": True, "color": "purple"},
+                    }]},
+                })
+
+        if extra_blocks:
+            _notion_req("PATCH", f"/blocks/{page_id}/children", token, {"children": extra_blocks})
+
+        # ── Guardar JSON completo como código (backup para restore) ──
+        try:
+            notion_store_json_block(token, page_id, payload)
+        except Exception as e:
+            print(f"  ⚠️  JSON block en Notion: {e}")
 
         return True, page_id, "OK"
 
@@ -238,57 +390,6 @@ def save_to_notion(cfg, payload, pdf_filename=None):
         return False, None, f"HTTP {e.code}: {msg}"
     except Exception as e:
         return False, None, str(e)
-
-
-def _attach_pdf_block_to_notion(token, page_id, pdf_filename):
-    """Agrega un bloque con link al PDF dentro de la página de Notion."""
-    base_url = os.environ.get("APP_URL", "").rstrip("/")
-    if not base_url:
-        base_url = f"http://localhost:{PORT}"
-    pdf_url = f"{base_url}/api/pdf/{pdf_filename}"
-    try:
-        block_data = json.dumps({
-            "children": [
-                {
-                    "object": "block",
-                    "type": "divider",
-                    "divider": {}
-                },
-                {
-                    "object": "block",
-                    "type": "heading_3",
-                    "heading_3": {
-                        "rich_text": [{"type": "text", "text": {"content": "📄 Reporte PDF"}}]
-                    }
-                },
-                {
-                    "object": "block",
-                    "type": "paragraph",
-                    "paragraph": {
-                        "rich_text": [{
-                            "type": "text",
-                            "text": {"content": pdf_filename, "link": {"url": pdf_url}},
-                            "annotations": {"bold": True, "color": "purple"}
-                        }]
-                    }
-                }
-            ]
-        }).encode("utf-8")
-
-        req = urllib.request.Request(
-            f"https://api.notion.com/v1/blocks/{page_id}/children",
-            data=block_data,
-            headers={
-                "Authorization":  f"Bearer {token}",
-                "Content-Type":   "application/json",
-                "Notion-Version": "2022-06-28",
-            },
-            method="PATCH",
-        )
-        with urllib.request.urlopen(req, timeout=10):
-            pass
-    except Exception as e:
-        print(f"  ⚠️  PDF block en Notion: {e}")
 
 
 def update_notion_rating(cfg, page_id, puntuacion):
@@ -448,15 +549,20 @@ class BiotipesHandler(http.server.SimpleHTTPRequestHandler):
             base_name  = f"{ts_slug}_{email_slug}"
             json_file  = RESULTS_DIR / f"{base_name}.json"
 
+            # Guardar nombre de archivo en el JSON (para restore desde Notion)
+            payload["archivo"] = json_file.name
+
             # Guardar foto si viene en el payload
             foto_filename = None
+            photo_bytes   = None
             photo_b64  = payload.pop("photoBase64",  None)
             photo_mime = payload.pop("photoMimeType", None) or "image/jpeg"
             if photo_b64:
                 import base64
+                photo_bytes = base64.b64decode(photo_b64)
                 ext = photo_mime.split("/")[-1].split(";")[0] or "jpg"
                 foto_filename = f"{base_name}.{ext}"
-                (FOTOS_DIR / foto_filename).write_bytes(base64.b64decode(photo_b64))
+                (FOTOS_DIR / foto_filename).write_bytes(photo_bytes)
                 payload["foto_filename"] = foto_filename
                 print(f"  🖼️  Foto guardada: {foto_filename}")
 
@@ -501,7 +607,11 @@ class BiotipesHandler(http.server.SimpleHTTPRequestHandler):
             notion_error = ""
             notion_cfg   = cfg.get("notion", {})
             if notion_cfg.get("enabled"):
-                n_ok, page_id, n_msg = save_to_notion(notion_cfg, payload, pdf_filename)
+                n_ok, page_id, n_msg = save_to_notion(
+                    notion_cfg, payload, pdf_filename,
+                    photo_bytes=photo_bytes, photo_mime=photo_mime,
+                    pdf_bytes=pdf_bytes,
+                )
                 notion_ok    = n_ok
                 notion_error = "" if n_ok else n_msg
                 if n_ok:
@@ -781,6 +891,12 @@ class BiotipesHandler(http.server.SimpleHTTPRequestHandler):
     # ─── USERS LIST ──────────────────────────────────────────
     def _handle_users(self):
         try:
+            # Restaurar desde Notion si no hay archivos locales (post-redeploy)
+            if not list(RESULTS_DIR.glob("*.json")):
+                cfg = load_config()
+                if cfg.get("notion", {}).get("enabled"):
+                    restore_from_notion(cfg.get("notion", {}))
+
             users = []
             for f in sorted(RESULTS_DIR.glob("*.json"), reverse=True):
                 try:
@@ -816,9 +932,33 @@ class BiotipesHandler(http.server.SimpleHTTPRequestHandler):
     def _handle_serve_pdf(self):
         filename = self.path.replace("/api/pdf/", "").strip("/")
         pdf_path = PDFS_DIR / filename
-        if not pdf_path.exists() or not filename.endswith(".pdf"):
+        if not filename.endswith(".pdf"):
             self._respond(404, {"ok": False, "error": "PDF no encontrado"})
             return
+        if not pdf_path.exists():
+            # Intentar regenerar desde JSON local
+            base      = filename[:-4]
+            json_path = RESULTS_DIR / f"{base}.json"
+            if not json_path.exists():
+                # Intentar restaurar desde Notion primero
+                cfg = load_config()
+                if cfg.get("notion", {}).get("enabled"):
+                    restore_from_notion(cfg.get("notion", {}))
+            if json_path.exists():
+                try:
+                    from pdf_generator import generate_pdf
+                    data      = json.loads(json_path.read_text(encoding="utf-8"))
+                    pdf_data  = build_pdf_data(data, json_path)
+                    pdf_bytes = generate_pdf(pdf_data)
+                    pdf_path.write_bytes(pdf_bytes)
+                    print(f"  📄 PDF regenerado: {filename}")
+                except Exception as e:
+                    print(f"  ⚠️  No se pudo regenerar PDF: {e}")
+                    self._respond(404, {"ok": False, "error": "PDF no disponible"})
+                    return
+            else:
+                self._respond(404, {"ok": False, "error": "PDF no encontrado"})
+                return
         data = pdf_path.read_bytes()
         self.send_response(200)
         self._cors()
@@ -830,11 +970,29 @@ class BiotipesHandler(http.server.SimpleHTTPRequestHandler):
 
     # ─── SERVE FOTO ──────────────────────────────────────────
     def _handle_serve_foto(self):
-        filename = self.path.replace("/api/foto/", "").strip("/")
+        filename  = self.path.replace("/api/foto/", "").strip("/")
         foto_path = FOTOS_DIR / filename
         if not foto_path.exists():
-            self._respond(404, {"ok": False, "error": "Foto no encontrada"})
-            return
+            # Buscar notion_foto_url en el JSON correspondiente
+            base = filename.rsplit(".", 1)[0]
+            json_path = RESULTS_DIR / f"{base}.json"
+            notion_url = ""
+            if json_path.exists():
+                try:
+                    notion_url = json.loads(json_path.read_text(encoding="utf-8")).get("notion_foto_url", "")
+                except Exception:
+                    pass
+            if notion_url:
+                try:
+                    with urllib.request.urlopen(notion_url, timeout=15) as r:
+                        foto_bytes = r.read()
+                    foto_path.write_bytes(foto_bytes)
+                except Exception:
+                    self._respond(404, {"ok": False, "error": "Foto no disponible"})
+                    return
+            else:
+                self._respond(404, {"ok": False, "error": "Foto no encontrada"})
+                return
         ext = filename.rsplit(".", 1)[-1].lower()
         mime = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
                 "gif": "image/gif", "webp": "image/webp", "heic": "image/heic",
@@ -1033,9 +1191,13 @@ if __name__ == "__main__":
     print(f"\n  🧬 App Biotipos — Servidor local")
     print(f"  ────────────────────────────────────")
     print(f"  URL:        http://localhost:{PORT}")
-    print(f"  Resultados: {RESULTS_DIR}")
-    print(f"  PDFs:       {PDFS_DIR}")
     print(f"  Ctrl+C para detener\n")
+
+    # Restaurar datos desde Notion si el servidor arrancó sin archivos locales
+    _startup_cfg = load_config()
+    if _startup_cfg.get("notion", {}).get("enabled"):
+        restore_from_notion(_startup_cfg.get("notion", {}))
+
     httpd = http.server.HTTPServer(("", PORT), BiotipesHandler)
     try:
         httpd.serve_forever()
