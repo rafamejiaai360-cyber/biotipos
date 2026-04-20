@@ -8,7 +8,7 @@ if sys.platform == "darwin":
         os.execv(sys.executable, [sys.executable] + sys.argv)
 
 """
-server.py — Servidor local para App Biotipos
+server.py — Servidor App Biotipos
 - Sirve archivos estáticos en http://localhost:3000
 - POST /api/save              → guarda resultado, genera PDF, envía email, syncs Notion
 - POST /api/rating            → actualiza puntuacion en JSON y Notion
