@@ -329,37 +329,34 @@ def save_to_notion(cfg, payload, pdf_filename=None, photo_bytes=None,
 
         extra_blocks = []
 
-        # ── Subir foto a Notion ──────────────────────────────
+        # ── Subir foto como adjunto en columna "Foto" ────────
         if photo_bytes and photo_mime:
             foto_name = payload.get("foto_filename", "foto.jpg")
             fid, furl = notion_upload_file(token, photo_bytes, foto_name, photo_mime)
             if fid:
                 payload["notion_foto_url"] = furl
-                extra_blocks.append({
-                    "object": "block", "type": "heading_3",
-                    "heading_3": {"rich_text": [{"type": "text", "text": {"content": "📸 Foto del usuario"}}]},
+                _notion_req("PATCH", f"/pages/{page_id}", token, {
+                    "properties": {
+                        "Foto": {
+                            "files": [{"type": "file_upload", "file_upload": {"id": fid}}]
+                        }
+                    }
                 })
-                extra_blocks.append({
-                    "object": "block", "type": "image",
-                    "image": {"type": "file_upload", "file_upload": {"id": fid}},
-                })
-                print(f"  📸 Foto subida a Notion")
+                print(f"  📸 Foto adjunta en Notion")
 
-        # ── Subir PDF a Notion ───────────────────────────────
+        # ── Subir PDF como adjunto en columna "PDF" ──────────
         if pdf_bytes and pdf_filename:
             pid, purl = notion_upload_file(token, pdf_bytes, pdf_filename, "application/pdf")
             if pid:
                 payload["notion_pdf_url"] = purl
-                extra_blocks.append({"object": "block", "type": "divider", "divider": {}})
-                extra_blocks.append({
-                    "object": "block", "type": "heading_3",
-                    "heading_3": {"rich_text": [{"type": "text", "text": {"content": "📄 Reporte PDF"}}]},
+                _notion_req("PATCH", f"/pages/{page_id}", token, {
+                    "properties": {
+                        "PDF": {
+                            "files": [{"type": "file_upload", "file_upload": {"id": pid}}]
+                        }
+                    }
                 })
-                extra_blocks.append({
-                    "object": "block", "type": "file",
-                    "file": {"type": "file_upload", "file_upload": {"id": pid}},
-                })
-                print(f"  📄 PDF subido a Notion")
+                print(f"  📄 PDF adjunto en Notion")
             else:
                 # Fallback: link externo al PDF
                 base_url = os.environ.get("APP_URL", f"http://localhost:{PORT}").rstrip("/")
