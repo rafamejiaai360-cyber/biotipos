@@ -173,6 +173,19 @@ def _notion_req(method, path, token, body=None, timeout=15):
         return json.loads(resp.read())
 
 
+_data_source_cache = {}
+
+def _notion_data_source_id(database_id, token):
+    """Resuelve el data_source_id de una base de datos (API 2025-09+ multi-source)."""
+    if database_id in _data_source_cache:
+        return _data_source_cache[database_id]
+    result = _notion_req("GET", f"/databases/{database_id}", token)
+    sources = result.get("data_sources", [])
+    ds_id = sources[0]["id"] if sources else database_id
+    _data_source_cache[database_id] = ds_id
+    return ds_id
+
+
 def notion_upload_file(token, file_bytes, filename, content_type):
     """Sube un archivo a Notion Files API. Devuelve upload_id o None."""
     try:
@@ -275,7 +288,8 @@ def restore_conocimiento_from_notion(notion_cfg):
             body = {"page_size": 100}
             if cursor:
                 body["start_cursor"] = cursor
-            result   = _notion_req("POST", f"/databases/{db_id}/query", token, body)
+            ds_id    = _notion_data_source_id(db_id, token)
+            result   = _notion_req("POST", f"/data_sources/{ds_id}/query", token, body)
             has_more = result.get("has_more", False)
             cursor   = result.get("next_cursor")
             for page in result.get("results", []):
@@ -325,7 +339,8 @@ def restore_from_notion(cfg):
             body = {"page_size": 100}
             if cursor:
                 body["start_cursor"] = cursor
-            result   = _notion_req("POST", f"/databases/{database_id}/query", token, body)
+            ds_id    = _notion_data_source_id(database_id, token)
+            result   = _notion_req("POST", f"/data_sources/{ds_id}/query", token, body)
             has_more = result.get("has_more", False)
             cursor   = result.get("next_cursor")
 
@@ -1169,7 +1184,8 @@ class BiotipesHandler(http.server.SimpleHTTPRequestHandler):
 
         # Test 1: Query database
         try:
-            r = _notion_req("POST", f"/databases/{notion_cfg['database_id']}/query", token, {"page_size": 1})
+            ds_id = _notion_data_source_id(notion_cfg['database_id'], token)
+            r = _notion_req("POST", f"/data_sources/{ds_id}/query", token, {"page_size": 1})
             results["database_query"] = "OK"
         except Exception as e:
             results["database_query"] = str(e)
