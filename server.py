@@ -258,7 +258,7 @@ def save_conocimiento_to_notion(notion_cfg, doc_data):
         result = _notion_req("POST", "/pages", token, {
             "parent":     {"database_id": db_id},
             "properties": {
-                "Name": {"title": [{"text": {"content": doc_data.get("titulo", "Sin título")}}]},
+                "Nombre": {"title": [{"text": {"content": doc_data.get("titulo", "Sin título")}}]},
             },
         })
         page_id = result.get("id", "")
