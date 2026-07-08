@@ -12,13 +12,14 @@ const state = {
   results: null,
 };
 
-const TOTAL_BLOCKS = 5;
+const TOTAL_BLOCKS = 6;
 
 const MOTIVATORS = [
-  "¡Excelente! Ya estás al 20% 🙌",
-  "¡Vas muy bien! A la mitad del camino 🔥",
-  "¡Casi! Solo un poco más 💪",
-  "¡Último bloque! Esto se pone interesante ⚡",
+  "¡Vas bien! Sigue así 🙌",
+  "¡Ya vas a la mitad! 🔥",
+  "¡Más de la mitad! 💪",
+  "¡Ya casi! Un par de bloques más ⚡",
+  "¡Último bloque! Esto se pone interesante 🎯",
 ];
 
 // ============================================================

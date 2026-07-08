@@ -212,6 +212,47 @@ const QUESTIONS = [
       { emoji: "📋", text: "Con todos los detalles, contexto y fundamentos", type: "m" },
     ]
   },
+  // BLOQUE 6 — Tu biología física
+  {
+    id: 21, block: 6,
+    text: "Si ves tu rostro de frente, ¿qué forma se parece más a la tuya?",
+    options: [
+      { emoji: "🔺", text: "Triángulo invertido: frente amplia, mandíbula que se afila hacia la barbilla", type: "c" },
+      { emoji: "🟦", text: "Cuadrado: frente y mandíbula del mismo ancho, rostro compacto", type: "s" },
+      { emoji: "💎", text: "Diamante: los pómulos son lo más ancho de tu cara", type: "f" },
+      { emoji: "📏", text: "Alargado: tu rostro es más largo que ancho, rasgos delgados", type: "m" },
+    ]
+  },
+  {
+    id: 22, block: 6,
+    text: "Fíjate en tus manos. ¿Cuál descripción se acerca más?",
+    options: [
+      { emoji: "✋", text: "Grandes, casi del tamaño de tu propia cara", type: "c" },
+      { emoji: "🖐️", text: "Palma cuadrada, dedos cortos, base gruesa", type: "s" },
+      { emoji: "🤲", text: "Largas y delgadas, venas poco marcadas", type: "f" },
+      { emoji: "🦴", text: "Huesudas, con venas y tendones muy visibles", type: "m" },
+    ]
+  },
+  {
+    id: 23, block: 6,
+    text: "Naturalmente (sin importar si haces ejercicio), ¿cuál complexión describe mejor tu cuerpo?",
+    options: [
+      { emoji: "🏔️", text: "Tronco corto, brazos y piernas muy largos, volumen arriba", type: "c" },
+      { emoji: "🧱", text: "Ancho y fuerte de forma pareja, contextura sólida", type: "s" },
+      { emoji: "🌊", text: "Extremidades largas, contextura suave, pierdes la forma fácil", type: "f" },
+      { emoji: "📐", text: "Delgado y huesudo, se te marcan venas y tendones fácil", type: "m" },
+    ]
+  },
+  {
+    id: 24, block: 6,
+    text: "¿Cómo es naturalmente tu piel (sin cremas ni tratamientos)?",
+    options: [
+      { emoji: "🔥", text: "Tono rojizo, me salen líneas de expresión pronto en las mejillas", type: "c" },
+      { emoji: "💧", text: "Húmeda, cálida y suave al tacto", type: "s" },
+      { emoji: "🌙", text: "Muy suave y delicada, casi no me salen arrugas", type: "f" },
+      { emoji: "🍂", text: "Seca, de textura fina, tiende a resecarse fácil", type: "m" },
+    ]
+  },
 ];
 
 const BLOCK_NAMES = [
@@ -220,6 +261,7 @@ const BLOCK_NAMES = [
   "Cómo te ven los demás",
   "Tu mundo interno",
   "En acción",
+  "Tu biología física",
 ];
 
 const NEIGHBORS = {
