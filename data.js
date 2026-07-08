@@ -908,3 +908,7 @@ const PROFILES = {
     },
   },
 };
+
+// Nota especial (metodología RGP): se agrega a la descripción cuando una
+// mujer puntúa dominante Colérico y se reclasifica como Flemática — Fuego Falso.
+const FUEGO_FALSO_NOTE = "Nota sobre tu resultado: tus respuestas mostraron un enfoque marcadamente decidido, directo y orientado a resultados — el patrón que normalmente asociamos con el temperamento Colérico. Según la metodología de Rodrigo García Platas, esa intensidad no corresponde a una biología Colérica (que, en su enfoque, no se presenta en mujeres), sino a lo que llama \"Flemática — Fuego Falso\": una base biológica Flemática (elemento agua) sobre la que se construyó una máscara de fuego — dominante, rígida, enfocada en resultados — como mecanismo de defensa, muchas veces frente a heridas de la infancia o falta de contención emocional. Debajo de esa fortaleza aparente hay, en sus palabras, un \"corazón con patas\": alguien con una necesidad profunda de crear comunidad y cuidar a otros, que puede sentirse solo/a o insuficiente por no mostrar su verdadera sensibilidad. Reconocer esto no te resta fuerza — te da permiso para soltar la armadura cuando ya no la necesitas.";

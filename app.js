@@ -100,7 +100,7 @@ function _showCommentSection() {
 }
 
 function restartQuiz() {
-  state.user = { nombre: "", apellido: "", email: "" };
+  state.user = { nombre: "", apellido: "", email: "", sexo: "" };
   state.answers = {};
   state.currentBlock = 1;
   state.photoBase64 = null;
@@ -128,8 +128,9 @@ function validateRegisterForm() {
   const nombre   = document.getElementById("input-nombre").value.trim();
   const apellido = document.getElementById("input-apellido").value.trim();
   const email    = document.getElementById("input-email").value.trim();
+  const sexo     = document.getElementById("input-sexo").value;
   const emailOk  = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  document.getElementById("register-btn").disabled = !(nombre && apellido && emailOk);
+  document.getElementById("register-btn").disabled = !(nombre && apellido && emailOk && sexo);
 }
 
 function registerSubmit(event) {
@@ -137,6 +138,7 @@ function registerSubmit(event) {
   state.user.nombre   = document.getElementById("input-nombre").value.trim();
   state.user.apellido = document.getElementById("input-apellido").value.trim();
   state.user.email    = document.getElementById("input-email").value.trim();
+  state.user.sexo     = document.getElementById("input-sexo").value;
   goTo("screen-photo");
 }
 
@@ -284,7 +286,7 @@ function showProcessing() {
 
   setTimeout(() => {
     clearInterval(iv);
-    state.results = calculateResults(state.answers);
+    state.results = calculateResults(state.answers, state.user.sexo);
     renderResults(state.results);
     goTo("screen-results");
     saveToNotion(state.results);
@@ -303,11 +305,14 @@ function renderResults(results) {
 
   document.getElementById("results-user-greeting").textContent =
     `Hola, ${state.user.nombre} 👋`;
-  document.getElementById("results-badge").textContent =
-    `${dominantData.emoji} ${dominantData.name} · ${secondaryData.emoji} ${secondaryData.name}`;
+  document.getElementById("results-badge").textContent = results.fuegoFalso
+    ? `${dominantData.emoji} Flemática — Fuego Falso · ${secondaryData.emoji} ${secondaryData.name}`
+    : `${dominantData.emoji} ${dominantData.name} · ${secondaryData.emoji} ${secondaryData.name}`;
   document.getElementById("results-title").textContent       = profile.title;
   document.getElementById("results-combo").textContent       = profile.subtitle;
-  document.getElementById("results-description").textContent = profile.description;
+  document.getElementById("results-description").textContent = results.fuegoFalso
+    ? `${profile.description}\n\n${FUEGO_FALSO_NOTE}`
+    : profile.description;
 
   // Scores
   const scoresGrid = document.getElementById("scores-grid");
@@ -464,8 +469,10 @@ async function saveToNotion(results) {
     nombre:        state.user.nombre,
     apellido:      state.user.apellido,
     email:         state.user.email,
+    sexo:          state.user.sexo,
     dominant:      results.dominant,
     secondary:     results.secondary,
+    fuegoFalso:    !!results.fuegoFalso,
     perfil:        results.profile.title + " — " + results.profile.subtitle,
     scores:        results.scores,
     conFoto:       !!state.photoBase64,

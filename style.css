@@ -671,6 +671,7 @@ body {
   opacity: .9;
   max-width: 560px;
   margin: 0 auto;
+  white-space: pre-line;
 }
 
 /* Sections */

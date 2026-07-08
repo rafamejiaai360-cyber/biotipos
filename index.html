@@ -90,6 +90,21 @@
           <span class="form-hint">Solo para enviarte tu resultado, nunca spam.</span>
         </div>
 
+        <div class="form-group">
+          <label class="form-label" for="input-sexo">Sexo</label>
+          <select
+            id="input-sexo"
+            class="form-input"
+            required
+            onchange="validateRegisterForm()"
+          >
+            <option value="" selected disabled>Selecciona...</option>
+            <option value="hombre">Hombre</option>
+            <option value="mujer">Mujer</option>
+          </select>
+          <span class="form-hint">Nos ayuda a afinar el análisis de tu temperamento.</span>
+        </div>
+
         <button class="btn-primary btn-full" type="submit" id="register-btn" disabled>
           Continuar →
         </button>

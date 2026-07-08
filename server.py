@@ -402,12 +402,16 @@ def save_to_notion(cfg, payload, pdf_filename=None, photo_bytes=None,
         nombre   = payload.get("nombre", "")
         apellido = payload.get("apellido", "")
 
+        sexo = payload.get("sexo", "")
+
         properties = {
             "Nombre":                 {"title":     [{"text": {"content": nombre}}]},
             "Apellido":               {"rich_text": [{"text": {"content": apellido}}]},
             "Email":                  {"email":     payload.get("email", "")},
+            "Sexo":                   {"select":    ({"name": "Mujer" if sexo == "mujer" else "Hombre"} if sexo else None)},
             "Temperamento Dominante": {"select":    {"name": TYPE_NAMES.get(dom, dom)}},
             "Temperamento Secundario":{"select":    {"name": TYPE_NAMES.get(sec, sec)}},
+            "Fuego Falso":            {"select":    {"name": "Sí" if payload.get("fuegoFalso") else "No"}},
             "Perfil":                 {"rich_text": [{"text": {"content": payload.get("perfil", "")[:2000]}}]},
             "Con Foto":               {"select":    {"name": "Sí" if payload.get("conFoto") else "No"}},
             "Puntaje Colérico":    {"number": scores.get("c", 0)},
